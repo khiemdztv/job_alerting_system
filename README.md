@@ -1,8 +1,8 @@
-# ViecLamBot - Vietnam Job Aggregator and Telegram Alert System
+# Job Alerting System - Vietnam Job Aggregator and Telegram Alert System
 
 Live Telegram Bot Demo: https://t.me/cty_khong_bot
 
-ViecLamBot is a serverless job aggregator and automated notification system designed to crawl, process, filter, and deliver job opportunities in Vietnam directly to users via Telegram. It supports multiple major job boards, real-time live parallel search, Vietnamese spelling tolerance, and intelligent search results distribution.
+Job Alerting System is a serverless job aggregator and automated notification system designed to crawl, process, filter, and deliver job opportunities in Vietnam directly to users via Telegram. It supports multiple major job boards, real-time live parallel search, Vietnamese spelling tolerance, and intelligent search results distribution.
 
 ---
 
