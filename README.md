@@ -1,85 +1,184 @@
-# Job Alerting System - Vietnam Job Aggregator and Telegram Alert System
+# ViecLamBot - Serverless Vietnamese Job Aggregator and Telegram Alert System
 
-Live Telegram Bot Demo: https://t.me/cty_khong_bot
+Live Telegram Bot: [https://t.me/cty_khong_bot](https://t.me/cty_khong_bot)
 
-Job Alerting System is a serverless job aggregator and automated notification system designed to crawl, process, filter, and deliver job opportunities in Vietnam directly to users via Telegram. It supports multiple major job boards, real-time live parallel search, Vietnamese spelling tolerance, and intelligent search results distribution.
-
----
-
-## Architecture Overview
-
-The system is built on a serverless microservices architecture deployed to AWS, utilizing AWS Lambda, Amazon DynamoDB, Amazon S3, Amazon SQS, Amazon EventBridge, and Amazon API Gateway.
-
-The system consists of four primary pipelines:
-
-### 1. Scraper Pipeline
-Triggered periodically by an EventBridge scheduled rule (every 6 hours). It runs all configured scrapers for active search keywords (combining multi-industry seed keywords and active user subscriptions) and publishes raw job postings to an SQS queue.
-
-### 2. ETL and Ingestion Pipeline
-Triggered by messages arriving in the SQS raw jobs queue. A Lambda consumer processes the raw jobs:
-- Normalizes job titles, locations, and salaries.
-- Deduplicates postings using a deterministic hash of the job URL.
-- Cleans and formats the text (combining diacritics into NFC unicode format).
-- Loads the processed jobs into DynamoDB (with a 60-day Time-To-Live expiration) and uploads the raw payload into an S3 Data Lake.
-
-### 3. Matcher Pipeline
-Triggered by an EventBridge scheduled rule (every 6 hours, offset 15 minutes after the scraper pipeline starts). It:
-- Queries newly ingested jobs from DynamoDB.
-- Matches them against active user keyword subscriptions.
-- Groups matches by user and sends aggregated job alert digests via the Telegram Bot API.
-
-### 4. Interactive Bot Webhook Pipeline
-Triggered instantly when a user interacts with the Telegram bot. API Gateway proxies the Telegram webhook payloads to a Lambda function, which routes commands:
-- Subscription management (subscribe, unsubscribe, list).
-- Live parallel search (scrapes all 6 platforms in real time, processes jobs through ETL, updates the database, and returns interleaved results directly to the user).
+**ViecLamBot** is a serverless Vietnamese job aggregator and notification system designed to crawl, process, filter, and deliver job opportunities in Vietnam directly to users via Telegram. It supports parallel search, Vietnamese spelling tolerance, source interleaving, location-aware filtering, and resilient serverless workflows on AWS.
 
 ---
 
-## Folder Structure
+## System Workflows & Architecture
 
-The repository is organized as follows:
+The system is deployed on AWS using a serverless architecture consisting of four main pipelines.
+
+### End-to-End System Flowchart
+Below is the system-wide lifecycle of jobs, subscriptions, and interactions:
+
+```mermaid
+graph TD
+    %% Scheduling & Scraping
+    subgraph Scheduling [Trigger & Schedule]
+        EB_Scraper[EventBridge Rule: Scraper Every 6h]
+        EB_Matcher[EventBridge Rule: Matcher Every 6h +15m]
+    end
+
+    subgraph Ingestion [Ingestion & Archival]
+        Scraper_Lambda[vieclambot-scraper Lambda]
+        SQS_Queue[SQS: raw-jobs Queue]
+        S3_DataLake[(S3 Data Lake: raw/)]
+    end
+
+    subgraph processing [ETL Processing]
+        ETL_Lambda[vieclambot-etl Lambda]
+        DB_Jobs[(DynamoDB: vieclambot-jobs)]
+    end
+
+    subgraph Matching [Matching & Notifications]
+        Matcher_Lambda[vieclambot-matcher Lambda]
+        DB_Users[(DynamoDB: vieclambot-users)]
+    end
+
+    subgraph Interface [Interactive User Client]
+        Telegram_Client[Telegram User / Bot Client]
+        APIGW[API Gateway REST API]
+        Webhook_Lambda[vieclambot-webhook Lambda]
+    end
+
+    %% Flows
+    EB_Scraper -->|Trigger| Scraper_Lambda
+    Scraper_Lambda -->|1. Fetch sub keywords| DB_Users
+    Scraper_Lambda -->|2. Stream raw jobs| SQS_Queue
+    Scraper_Lambda -->|3. Save raw JSON| S3_DataLake
+
+    SQS_Queue -->|4. Trigger batch| ETL_Lambda
+    ETL_Lambda -->|5. Clean, transform & load| DB_Jobs
+
+    EB_Matcher -->|Trigger| Matcher_Lambda
+    Matcher_Lambda -->|6. Query active user subs| DB_Users
+    Matcher_Lambda -->|7. Search matched jobs| DB_Jobs
+    Matcher_Lambda -->|8. Send alert digests| Telegram_Client
+
+    Telegram_Client -->|9. Webhook: Interaction / Search| APIGW
+    APIGW -->|Proxy payload| Webhook_Lambda
+    Webhook_Lambda -->|10. Read/Write Users & Subs| DB_Users
+    Webhook_Lambda -->|11. Fast live parallel scrape| Webhook_Lambda
+    Webhook_Lambda -->|12. Load search results| DB_Jobs
+    Webhook_Lambda -->|13. Interleave & respond| Telegram_Client
+```
+
+### 1. Scraper Pipeline (Every 6 Hours)
+Triggered periodically by an EventBridge scheduled rule. It runs scrapers in a memory-efficient stream-like fashion to prevent execution spikes.
+* **Process**: Computes search keywords from active user subscriptions and seed keywords, crawls job boards, and pushes results **source-by-source** to SQS and S3 immediately rather than waiting for the entire run to complete.
+
+```mermaid
+graph TD
+    EB1[EventBridge Rule: Cron Every 6h] -->|Trigger| SL[Scraper Lambda]
+    SL -->|Fetch active subscriptions| DB_Users[(vieclambot-users Table)]
+    SL -->|Generate target keywords| KWs[Keywords List]
+    KWs -->|Loop: Source by Source| Sources[Scrapers: ITviec, ViecLam24h, CareerLink, etc.]
+    Sources -->|Scrape job postings| Scrape[Raw Job Postings]
+    Scrape -->|Save raw JSON source-by-source| S3[S3 Data Lake bucket]
+    Scrape -->|Push jobs source-by-source| SQS[SQS raw-jobs Queue]
+```
+
+### 2. ETL & Ingestion Pipeline (Event-Driven)
+Triggered automatically by messages arriving in the SQS queue.
+* **Process**: Cleans, parses, maps, and normalizes job listings, then bulk-inserts them into DynamoDB.
+* **Idempotent Ingestion**: Removed pre-database check steps to simplify the code and leverage DynamoDB's native upsert behavior (update/overwrite existing items while updating the `scraped_at` timestamp).
+
+```mermaid
+graph TD
+    SQS[SQS raw-jobs Queue] -->|Trigger batch| EL[ETL Lambda]
+    EL -->|NFC normalization & diacritics| Transformer[Transformer]
+    Transformer -->|Location mapping & Salary parsing| Transformer
+    Transformer -->|Skill & tag extraction| Transformer
+    Transformer -->|In-batch deduplication| Dedupl[Deduplicator]
+    Dedupl -->|DynamoDB Upsert| DB_Jobs[(vieclambot-jobs Table)]
+    DB_Jobs -->|60-day automatic expiration| TTL[DynamoDB TTL]
+```
+
+### 3. Matcher & Notification Pipeline (Every 6 Hours)
+Triggered 15 minutes after the Scraper pipeline starts to ensure all ETL messages are processed.
+* **Process**: Matches the active user subscriptions against jobs in the database.
+* **Unified Query Logic**: Uses the exact same database search and spelling tolerance logic as the interactive `/search` command to guarantee total consistency between subscriptions and manual searches.
+
+```mermaid
+graph TD
+    EB2[EventBridge Rule: Offset 15m] -->|Trigger| ML[Matcher Lambda]
+    ML -->|Fetch active subscriptions| DB_Users[(vieclambot-users Table)]
+    ML -->|Iterate subscriptions| SubLoop[Loop: For each Sub]
+    SubLoop -->|Run Unified Search| SearchJobs[db_loader.search_jobs]
+    SearchJobs -->|Query database| DB_Jobs[(vieclambot-jobs Table)]
+    SearchJobs -->|Apply location filter| LocFilter[Location Filter]
+    LocFilter -->|Format digest| FormatMsg[Format Notification]
+    FormatMsg -->|Send message| Telegram[Telegram Bot API]
+    Telegram -->|MarkdownV2 fails| Fallback[Plain Text Fallback]
+```
+
+### 4. Interactive Bot Webhook & Live Search (Real-time)
+Triggered instantly when a user interacts with the bot on Telegram.
+* **Process**: Handles commands and live queries. For searches, it displays a loading message, executes a live fast parallel crawl across all sources (1 page each), ingests results on-the-fly, queries all matched items from the database, filters results, interleaves them, and updates the chat.
+
+```mermaid
+graph TD
+    User[User Input / Command / Search] -->|Interactive Message| TG_API[Telegram API]
+    TG_API -->|Webhook Payload| APIGW[API Gateway]
+    APIGW -->|Proxy| WL[Webhook Lambda]
+    WL -->|Send 'Searching, please wait...'| TG_API
+    WL -->|Parallel Execution ThreadPool| ThreadPool[ThreadPoolExecutor]
+    ThreadPool -->|Scrape 1 page each| LiveScrape[Live Scrapers]
+    LiveScrape -->|ETL & Load batch| DB_Jobs[(vieclambot-jobs Table)]
+    WL -->|Run Unified Search| SearchJobs[db_loader.search_jobs]
+    SearchJobs -->|Fetch jobs| DB_Jobs
+    SearchJobs -->|Apply Location & Age Filter| Filters[Filters]
+    Filters -->|Round-Robin Interleaving| Interleave[Interleave Results]
+    Interleave -->|Edit placeholder message with final list| TG_API
+```
+
+---
+
+## Directory Structure
 
 ```text
 Project DE/
-├── .env                  - Environment variables for local execution
+├── .env                  - Local environment configurations
 ├── requirements.txt      - Python dependencies
-├── pyproject.toml        - Test configurations (pytest, ruff)
-├── dist/                 - Target directory for Lambda zip deployment packages
+├── pyproject.toml        - Test configuration metadata
+├── dist/                 - Build target directory for Lambda deployment packages
 ├── lambdas/              - Entry points for AWS Lambda handlers
-│   ├── scraper_handler.py
-│   ├── etl_handler.py
-│   ├── matcher_handler.py
-│   └── bot_webhook_handler.py
+│   ├── scraper_handler.py    - Starts scraper pipeline (pushes to SQS and S3 in source batches)
+│   ├── etl_handler.py        - Listens to SQS, runs ETL, and upserts jobs in DynamoDB
+│   ├── matcher_handler.py    - Matches active user subscriptions using unified search logic
+│   └── bot_webhook_handler.py- Entry point for API Gateway Telegram webhook payloads
 ├── scripts/              - Local helper, testing, and deployment scripts
 │   ├── local_bot_polling.py  - Runs Telegram bot locally using long polling
-│   ├── local_pipeline_run.py - Runs the scraper/ETL pipeline locally
+│   ├── local_pipeline_run.py - Runs the scraper & ETL pipeline locally
 │   ├── setup_aws_resources.py- Provisions DynamoDB tables, SQS, S3, and roles
-│   └── deploy_lambdas.py     - Packages and deploys code to AWS Lambda
+│   ├── deploy_lambdas.py     - Packages and deploys code to AWS Lambda (custom timeouts configured)
+│   ├── fetch_lambda_logs.py  - Fetches recent Lambda logs directly from CloudWatch
+│   └── test_scrapers_live.py - Test scrapers on a single search keyword locally
 └── src/                  - Core application logic
     ├── bot/
-    │   └── handler.py        - Telegram Bot commands and interactive routing
+    │   └── handler.py        - Telegram Bot commands, interactive routing, and Markdown fallback
     ├── common/
-    │   ├── aws_clients.py    - Centralized cached boto3 client initializers
-    │   ├── logger.py         - JSON log format configurations
-    │   └── models.py         - Pydantic schemas for Job, RawJob, User, Subscription
+    │   ├── aws_clients.py    - Cached boto3 client initializers
+    │   ├── logger.py         - JSON format logging configurations
+    │   └── models.py         - Pydantic models (Job, RawJob, User, Subscription)
     ├── config.py             - Central configuration settings (Pydantic Settings)
     ├── data_quality/
-    │   └── validators.py     - Schema validator and filters for crawled raw data
+    │   └── validators.py     - Schema validator and quality filters for crawled raw data
     ├── etl/
-    │   ├── loader.py         - DynamoDB and S3 loading/deduplication queries
-    │   └── transformer.py    - Data cleaning, normalization, and tag extraction
+    │   ├── loader.py         - DynamoDB loaders, bulk loaders, and unified search logic
+    │   └── transformer.py    - Unicode normalizer, location standardization, and tags parser
     ├── matcher/
-    │   └── keyword_matcher.py- Matches jobs to users based on keywords
+    │   └── keyword_matcher.py- Matches jobs to users and formats notifications
     └── scrapers/
-        ├── base_scraper.py   - Base abstract scraper with rate limits and session retries
+        ├── base_scraper.py   - Base abstract scraper with rate limits and retries
         ├── careerlink_scraper.py
         ├── careerviet_scraper.py
         ├── itviec_scraper.py
         ├── jooble_scraper.py
         ├── timviec365_scraper.py
-        ├── vieclam24h_scraper.py
-        ├── mywork_scraper.py  - Merged with ViecLam24h (skips to avoid duplicates)
-        └── timviecnhanh_scraper.py - Merged with ViecLam24h (skips to avoid duplicates)
+        └── vieclam24h_scraper.py (handles mywork & timviecnhanh redirects)
 ```
 
 ---
@@ -88,175 +187,150 @@ Project DE/
 
 The system aggregates job openings from six major platforms:
 
-- **CareerLink.vn**: Parsed from Next.js server-rendered HTML.
-- **ViecLam24h.vn**: Crawled from TailWind-based Tailwind-CSS static HTML.
-- **ITviec.com**: Scrapes technology-specific jobs.
-- **CareerViet.vn**: (Formerly CareerBuilder Vietnam) Parsed from server-side rendered HTML.
-- **TimViec365.vn**: Parsed from static HTML using custom card parsing selectors.
-- **Jooble API**: Queries the Jooble job aggregator API using a developer API key.
+* **CareerLink.vn**: Parsed from Next.js server-rendered HTML.
+* **ViecLam24h.vn**: Crawled from Tailwind CSS-based dynamic structure (also absorbs redirects from **MyWork** and **TimViecNanh**).
+* **ITviec.com**: Scrapes technology-specific jobs.
+* **CareerViet.vn**: (Formerly CareerBuilder Vietnam) Parsed from server-side rendered HTML.
+* **TimViec365.vn**: Parsed from static HTML using card selectors.
+* **Jooble API**: Queries the Jooble developer API (used if an API key is configured).
 
 ---
 
-## Database Design (DynamoDB Schema)
+## Database Design (DynamoDB Single-Table Schema)
 
-A single-table design concept is partially used for user profiles and subscriptions, while job postings are stored in a separate table due to different lifecycle and querying requirements.
+A single-table design is used for users and subscriptions, while job postings are stored in a separate table for cleaner TTL lifecycle management.
 
-### Table 1: Users and Subscriptions (vieclambot-users)
-- **Partition Key (PK)**: `user_id` (Telegram Chat ID, e.g., `123456789`)
-- **Sort Key (SK)**:
-  - For user profiles: `USER`
-  - For subscriptions: `SUB#<normalized_keyword>` (e.g., `SUB#data engineer`)
-- **Key Attributes**:
-  - User: `username`, `first_name`, `registered_at`, `is_active`
-  - Subscription: `keyword_raw`, `keyword_normalized`, `location_filter`, `subscribed_at`, `is_active`
+### 1. Users and Subscriptions (`vieclambot-users`)
+* **Partition Key (PK)**: `user_id` (Telegram Chat ID, e.g., `1613425467`)
+* **Sort Key (SK)**:
+  * For user profiles: `USER`
+  * For subscriptions: `SUB#<normalized_keyword>` (e.g., `SUB#data engineer`)
+* **Attributes**:
+  * User: `username`, `first_name`, `registered_at`, `is_active`
+  * Subscription: `keyword_raw`, `keyword_normalized`, `location_filter`, `subscribed_at`, `is_active`
 
-### Table 2: Jobs (vieclambot-jobs)
-- **Partition Key (PK)**: `job_id` (Hex string hash generated deterministically from the job's URL)
-- **Key Attributes**: `title`, `title_normalized`, `company`, `location`, `location_normalized`, `salary_raw`, `salary_min`, `salary_max`, `description`, `source`, `source_url`, `tags`, `posted_at`, `scraped_at`, `ttl` (Time-to-live timestamp)
-
----
-
-## Data Engineering Principles and Implementations
-
-The architecture of ViecLamBot is designed in accordance with core data engineering patterns to build scalable, resilient, and high-quality data pipelines.
-
-### 1. Decoupled Ingestion with Message Queue Buffering
-The ingestion of scraped job postings is decoupled from downstream ETL processing using Amazon SQS:
-- **Load Leveling**: The Scraper Lambda pushes raw items to the SQS queue immediately upon scraping, protecting the DynamoDB database from write-throttling during high-volume spikes.
-- **Resilience and Retries**: If the ETL consumer Lambda fails to process a batch (due to database unavailability or malformed schema), the messages remain in the queue or are sent to a dead-letter queue, ensuring zero data loss.
-
-### 2. Idempotent Ingestion and Deterministic Hashing
-To prevent duplicate job records in DynamoDB and duplicate alerts to users:
-- Job postings from different sources are mapped to a deterministic `job_id` using the SHA-256 hash of their canonical URL.
-- DynamoDB uses `job_id` as its Partition Key. This ensures that repeated ingestion of the same job posting acts as a clean upsert (update/insert) rather than generating duplicate records.
-
-### 3. Multi-Stage Data Quality and Validation Gates
-Data quality is enforced at multiple check gates within the pipeline using validators:
-- **Raw Validation Gate (Post-Scrape)**: The `RawJobValidator` checks that critical fields like the job title and source URL are present, and computes batch completeness metrics (such as the Completeness Score and Pass Rate) to monitor scraping quality over time.
-- **Processed Validation Gate (Post-Transform)**: Before saving to the database, the `ProcessedJobValidator` performs logical sanity checks, ensuring normalized salary ranges are valid (e.g., `salary_min <= salary_max` and values are positive) and critical primary keys are present.
-
-### 4. Raw Archival and the S3 Data Lake Pattern
-Following standard data lake architectures, raw and processed data are kept separate:
-- **Raw Ingestion Archive**: The raw JSON payload returned by every scraper run is archived directly to Amazon S3 (partitioned chronologically under `raw/all_sources/YYYY/MM/DD/`).
-- **Auditability and Backfill**: Archiving raw payloads allows the entire pipeline to be audited, and enables future historical backfilling if the ETL transformation schema changes or if additional tags need to be extracted retroactively.
-
-### 5. Standardized Data Normalization (ETL)
-The ETL Transformer class converts unstructured raw data into high-fidelity structured formats:
-- **Unicode Normalization**: Text is standardized to NFC form to ensure consistency across multiple Vietnamese keyboard encodings.
-- **Location Standardization**: Raw location strings are mapped to standard Vietnamese provinces and cities using a predefined dictionary map to ensure accurate geography-based querying.
-- **Numerical Salary Extraction**: Various currency strings (e.g., USD, VND, million-VND ranges) are parsed using regular expressions and converted into uniform numerical integer values representing min/max salaries in VND.
-- **Tag Extraction**: Standardized technical tags and skill sets are extracted from descriptions and requirements using word-boundary regular expression token matching.
+### 2. Jobs Table (`vieclambot-jobs`)
+* **Partition Key (PK)**: `job_id` (SHA-256 hash of the canonical URL)
+* **Attributes**: `title`, `title_normalized`, `company`, `location`, `location_normalized`, `salary_raw`, `salary_min`, `salary_max`, `description`, `source`, `source_url`, `tags`, `posted_at`, `scraped_at`, `ttl` (Unix timestamp for 60-day automatic expiration).
 
 ---
 
+## Data Engineering Principles & Key Improvements
 
-## Search Features and Algorithms
+### 1. Stream Ingestion with SQS & S3 Source-Partitioning
+* **Streaming Architecture**: Rather than gathering all scraped jobs in memory and sending them at the end, the Scraper Lambda processes each source separately, immediately uploading its raw JSON to S3 and streaming valid records to SQS. This reduces execution memory usage and avoids scraping failures during long runs.
+* **Source Partitioning**: Raw data is saved in S3 with partition layouts based on source name: `s3://<bucket>/raw/{source_name}/YYYY/MM/DD/raw_YYYYMMDD_HHMMSS.json`. This provides auditability and allows targeted backfilling for specific job boards.
 
-Interactive searching via the bot implements two advanced matching algorithms:
+### 2. Idempotent Ingestion & Database Overwriting
+* **DynamoDB Upsert**: We removed the pre-database deduplication step that checked existing job IDs. The ETL Lambda directly bulk-upserts into DynamoDB. When a job is re-scraped, DynamoDB updates the record and refreshes the `scraped_at` timestamp. This simplifies code, reduces DynamoDB read operations, and ensures active alerts pick up refreshed job posts.
 
-### 1. Vietnamese Accent and Spelling Tolerance
-To ensure query matching succeeds even when users type spelling variations or accents inconsistently:
-- Text is converted to precomposed NFC Unicode form.
-- Accents are stripped from all characters (e.g., "năng lượng" becomes "nang luong").
-- Diacritic positioning differences (e.g., "hoà" vs "hòa") are automatically resolved during accent removal.
-- The vowels "i" and "y" are treated as interchangeable (e.g., "kĩ" and "kỹ" both normalize to "ki").
-- Cleaned query tokens must be subsets of the cleaned job title or tag strings.
+### 3. Multi-Stage Validation Gates
+* **Raw Validator**: Checks critical scraping output parameters (title, URL) and computes completeness metrics.
+* **Processed Validator**: Executes sanity checks before DynamoDB writing (validating salary ranges, location parameters, and primary keys).
 
-### 2. Time-Based Filtering and Round-Robin Interleaving
-To prevent a single active website from dominating the top results (for instance, when one site returns 50 matches and others only return 2):
-- **Age Filter**: Results are filtered to show only jobs posted or scraped within the last 7 days. If no recent jobs are found, it falls back to older listings to prevent empty screens.
-- **Interleaving**: Results are grouped by job board source. Within each source, jobs are sorted chronologically. The final result set is built by taking the first job from each source, then the second job from each, in a round-robin cycle up to a maximum limit of 20 display entries.
+### 4. Advanced Matching & Interleaving Algorithms
+* **Unified Search Logic**: The Matcher Lambda now queries subscriptions directly using `db_loader.search_jobs()`, utilizing the identical search algorithms as the user `/search` command.
+* **Vietnamese Accent & spelling Tolerance**: Strips Vietnamese diacritics, maps accents uniformly, converts the text to NFC format, and normalizes "i" and "y" vowels (e.g., "kỹ" and "kĩ" match the same) to ensure searches succeed without precise typing.
+* **Round-Robin Interleaving & Age Filtering**:
+  * Limits results to listings posted in the last **7 days** (with a fallback to older jobs if none are found).
+  * Sorts matches chronologically within each job board, then builds the final list by taking one job from each board in rotation. This prevents any single website from dominating the results.
 
 ---
 
 ## Configuration Settings
 
-The application loads configuration parameters from environment variables with a `VIECLAMBOT_` prefix.
+The system loads configurations from environment variables prefixed with `VIECLAMBOT_`.
 
 Key variables configured in `.env` include:
-- `VIECLAMBOT_TELEGRAM_BOT_TOKEN`: The API token obtained from Telegram BotFather.
-- `VIECLAMBOT_AWS_REGION`: The target AWS region (default: `ap-southeast-1`).
-- `VIECLAMBOT_DYNAMODB_JOBS_TABLE`: Name of the DynamoDB jobs table.
-- `VIECLAMBOT_DYNAMODB_USERS_TABLE`: Name of the DynamoDB users table.
-- `VIECLAMBOT_DYNAMODB_SUBSCRIPTIONS_TABLE`: Name of the DynamoDB subscriptions table (for legacy systems; now mapped to the users table).
-- `VIECLAMBOT_S3_DATA_LAKE_BUCKET`: S3 bucket name used to archive raw scraped payloads.
-- `VIECLAMBOT_SQS_RAW_JOBS_QUEUE`: SQS queue name for raw scraped postings.
-- `VIECLAMBOT_JOOBLE_API_KEY`: Developer key used for Jooble API scraper.
-- `VIECLAMBOT_LOG_LEVEL`: Logger level (e.g., `INFO`, `DEBUG`).
+* `VIECLAMBOT_TELEGRAM_BOT_TOKEN`: The API token from BotFather.
+* `VIECLAMBOT_AWS_REGION`: Target AWS region (default: `ap-southeast-1`).
+* `VIECLAMBOT_DYNAMODB_JOBS_TABLE`: Name of the DynamoDB jobs table.
+* `VIECLAMBOT_DYNAMODB_USERS_TABLE`: Name of the DynamoDB users table.
+* `VIECLAMBOT_S3_DATA_LAKE_BUCKET`: S3 bucket name for raw scraping backups.
+* `VIECLAMBOT_SQS_RAW_JOBS_QUEUE`: SQS queue name for raw scraped postings.
+* `VIECLAMBOT_JOOBLE_API_KEY`: API key for Jooble API scraper.
+* `VIECLAMBOT_LOG_LEVEL`: Log levels (`INFO`, `DEBUG`).
 
 ---
 
-## Development and Testing
+## Telegram Bot Commands
 
-All scripts must be run using the Python launcher. Ensure the console encoding is set to UTF-8 on Windows environments.
+* `/start`: Registers user profiles and shows the welcome message.
+* `/subscribe <keyword> [| location]`: Subscribes to alerts.
+  * _Example:_ `/subscribe data analyst | hồ chí minh`
+  * _Example:_ `/subscribe Python | Hà Nội`
+  * Maximum 3 active subscriptions.
+* `/unsubscribe <keyword>`: Unsubscribes from a keyword.
+  * Running `/unsubscribe` without keywords displays all active subscriptions with clickable, pre-filled unsubscribe commands.
+  * Matches the keyword loosely (substring matching). Removes matches and lists what was deleted.
+* `/list`: Lists active subscription keywords.
+* `/myjobs` or `/jobs`: Displays the top 20 latest jobs matching the user's subscriptions, filtered by age and interleaved across sources.
+* `/search <keyword> [| location]`: Triggers a live parallel search (crawls 1 page from each source in real-time), saves results, and displays the top 20 interleaved matches.
+  * **Status Message**: Immediately sends a `"🔍 Đang tìm kiếm việc làm trực tiếp từ các nguồn, vui lòng đợi trong giây lát..."` placeholder that edits itself to show the final results when finished.
+* `/help`: Detailed help manual.
+* **Direct Text Input**: Non-command messages automatically trigger `/search`.
+* **MarkdownV2 Fallback**: If sending text in MarkdownV2 style fails (due to escaping issues), the bot automatically strips MarkdownV2 escape characters and sends plain text to guarantee delivery.
 
-### Setting Up Environment Variables
-Create a `.env` file in the project root containing your AWS credentials and Telegram bot token:
-```text
+---
+
+## Local Development and Debugging
+
+### Setup
+Create a `.env` file in the project root:
+```env
 VIECLAMBOT_TELEGRAM_BOT_TOKEN=your_token_here
 VIECLAMBOT_AWS_REGION=ap-southeast-1
 VIECLAMBOT_DYNAMODB_JOBS_TABLE=vieclambot-jobs
 VIECLAMBOT_DYNAMODB_USERS_TABLE=vieclambot-users
+VIECLAMBOT_S3_DATA_LAKE_BUCKET=your_s3_bucket
+VIECLAMBOT_SQS_RAW_JOBS_QUEUE=your_sqs_queue
 VIECLAMBOT_JOOBLE_API_KEY=your_jooble_key_here
 ```
 
 ### Running Tests
-Execute the test suite using pytest:
+Execute the unit test suite:
 ```bash
 set PYTHONUTF8=1
 py -m pytest
 ```
 
-### Running Scrapers Locally
-You can test the scraper and pipeline ingestion scripts locally using the following helper scripts:
+### Running Scrapers & Pipelines Locally
 ```bash
-# Test all scrapers live and output transformed results to the terminal
+# Test scrapers locally for a target keyword
 set PYTHONUTF8=1
 py scripts/test_scrapers_live.py
 
-# Run a full ETL pipeline iteration locally using your AWS credentials
+# Run a complete Scrape -> SQS -> ETL loop locally on your machine
 set PYTHONUTF8=1
 py scripts/local_pipeline_run.py
 ```
 
-### Running Bot Locally (Long Polling)
-For local testing of Bot commands without registering an API Gateway URL:
+### Running the Bot Locally (Long Polling)
+Temporarily bypasses the live AWS Lambda webhook and reads updates directly from Telegram:
 ```bash
 set PYTHONUTF8=1
 py scripts/local_bot_polling.py
 ```
-This script will temporarily disable the live webhook, read messages directly from Telegram, and execute the command logic using your local code.
 
 ---
 
-## Deployment to AWS
+## AWS Deployment
 
-To deploy or update the serverless infrastructure on AWS:
+### 1. Provision Infrastructure
+Create DynamoDB tables, SQS queues, S3 buckets, and execution IAM roles:
+```bash
+py scripts/setup_aws_resources.py
+```
 
-1. **Provision Resources**:
-   Run the AWS setup script to create the necessary DynamoDB tables, SQS queues, S3 buckets, and IAM roles:
-   ```bash
-   py scripts/setup_aws_resources.py
-   ```
+### 2. Deploy Lambda Functions
+Packages requirements, bundles code, updates Lambdas on AWS, and updates the Telegram webhook URL to point to API Gateway:
+```bash
+py scripts/deploy_lambdas.py
+```
+* **Timeout Configurations**: The scraper Lambda is configured with a timeout of **900s (15 minutes)** to allow thorough scraping. The matcher Lambda has a timeout of **120s**.
 
-2. **Deploy Lambdas & API Gateway**:
-   Build the Linux-compatible deployment archive containing python package dependencies and project source files, update the 4 AWS Lambda functions, configure triggers, and publish the API Gateway REST API endpoints:
-   ```bash
-   py scripts/deploy_lambdas.py
-   ```
-   Upon successful deployment, the script automatically updates the webhook URL in the Telegram API to point to your new API Gateway deployment.
-
----
-
-## Bot Telegram Commands
-
-The bot supports the following commands:
-
-- `/start`: Registers the user's profile and displays the welcome menu.
-- `/subscribe <keyword> [| location]`: Subscribes the user to receive alerts. (e.g., `/subscribe ke toan | ho chi minh`). Maximum 3 active subscriptions per account.
-- `/unsubscribe <keyword>`: Unsubscribes from the specified keyword.
-- `/list`: Lists all current active subscription keywords for the account.
-- `/myjobs` or `/jobs`: Compiles and returns the top 20 latest jobs matching the user's subscribed keywords using the age-filtering and interleaving distribution.
-- `/search <keyword> [| location]`: Performs a live parallel search across all 6 scraper sources, ingests the results, and displays the top 20 interleaved matches.
-- `/help`: Displays a detailed user manual and help guide.
-- **Direct Text Input**: If the user sends a non-command text message, the bot automatically handles it as a search query.
+### 3. Monitor & Fetch Logs
+Fetch recent logs (last 15 minutes) for the bot webhook Lambda directly to the console:
+```bash
+py scripts/fetch_lambda_logs.py
+```
