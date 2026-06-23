@@ -25,34 +25,18 @@ from src.scrapers.itviec_scraper import ITviecScraper
 from src.scrapers.jooble_scraper import JoobleScraper
 from src.scrapers.timviec365_scraper import TimViec365Scraper
 from src.scrapers.vieclam24h_scraper import ViecLam24hScraper
+from src.scrapers.ybox_scraper import YBoxScraper
 
 logger = get_logger(__name__)
 
-# Seed keywords for baseline coverage across all industries.
+# Seed keywords — kept minimal to avoid Lambda timeout.
 # User subscription keywords are ALWAYS added on top of these.
 SEED_KEYWORDS = [
-    # IT / Tech
     "software engineer",
     "data engineer",
-    # Kế toán / Tài chính
     "kế toán",
-    "tài chính",
-    # Marketing / Sales
     "marketing",
-    "nhân viên kinh doanh",
-    # Nhân sự / Hành chính
     "nhân sự",
-    "hành chính",
-    # Kỹ thuật / Sản xuất
-    "kỹ thuật",
-    "sản xuất",
-    # Giáo dục / Y tế
-    "giáo viên",
-    "y tế",
-    # Khác
-    "logistics",
-    "xây dựng",
-    "thiết kế",
 ]
 
 
@@ -78,6 +62,7 @@ def handler(event, context):
         ITviecScraper(),
         CareerVietScraper(),
         TimViec365Scraper(),
+        YBoxScraper(),
     ]
 
     # Add Jooble if API key is configured
@@ -92,8 +77,9 @@ def handler(event, context):
     # Validate
     validator = RawJobValidator()
 
-    # Scrape all sources for all keywords
-    all_raw_jobs = []
+    # Scrape all sources for all keywords.
+    # IMPORTANT: Push to SQS after EACH source to avoid losing data on timeout.
+    total_raw_jobs = 0
     results = {}
 
     for scraper in scrapers:
@@ -101,13 +87,12 @@ def handler(event, context):
         source_jobs = []
 
         for keyword in keywords:
-            jobs = scraper.scrape_safe(keyword, max_pages=3)
+            jobs = scraper.scrape_safe(keyword, max_pages=1)
             source_jobs.extend(jobs)
 
         # Validate
         valid_jobs, quality_report = validator.validate_batch(source_jobs)
 
-        all_raw_jobs.extend(valid_jobs)
         results[source_name] = {
             "total_scraped": len(source_jobs),
             "valid": len(valid_jobs),
@@ -119,18 +104,17 @@ def handler(event, context):
             extra={"source": source_name, "job_count": len(valid_jobs)},
         )
 
-    # Push to SQS for ETL processing
-    if all_raw_jobs:
-        _push_to_sqs(all_raw_jobs, settings)
-
-    # Also save raw data to S3
-    _save_raw_to_s3(all_raw_jobs, settings)
+        # Push this source's jobs to SQS immediately (stream-style)
+        if valid_jobs:
+            _push_to_sqs(valid_jobs, settings)
+            _save_raw_to_s3(valid_jobs, settings, source_name)
+            total_raw_jobs += len(valid_jobs)
 
     duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
 
     summary = {
         "status": "success",
-        "total_raw_jobs": len(all_raw_jobs),
+        "total_raw_jobs": total_raw_jobs,
         "sources": results,
         "keywords_searched": len(keywords),
         "duration_ms": duration_ms,
@@ -138,8 +122,8 @@ def handler(event, context):
     }
 
     logger.info(
-        f"Scraper run complete: {len(all_raw_jobs)} total jobs",
-        extra={"job_count": len(all_raw_jobs), "duration_ms": duration_ms},
+        f"Scraper run complete: {total_raw_jobs} total jobs",
+        extra={"job_count": total_raw_jobs, "duration_ms": duration_ms},
     )
 
     return summary
@@ -228,7 +212,7 @@ def _push_to_sqs(raw_jobs, settings) -> None:
 
 
 
-def _save_raw_to_s3(raw_jobs, settings) -> None:
+def _save_raw_to_s3(raw_jobs, settings, source_name: str = "all_sources") -> None:
     """Save raw scraped data to S3 data lake."""
     try:
         import boto3
@@ -237,7 +221,7 @@ def _save_raw_to_s3(raw_jobs, settings) -> None:
         now = datetime.now(timezone.utc)
 
         data = [job.model_dump(mode="json") for job in raw_jobs]
-        key = f"raw/all_sources/{now.strftime('%Y/%m/%d')}/raw_{now.strftime('%Y%m%d_%H%M%S')}.json"
+        key = f"raw/{source_name}/{now.strftime('%Y/%m/%d')}/raw_{now.strftime('%Y%m%d_%H%M%S')}.json"
 
         s3.put_object(
             Bucket=settings.s3_data_lake_bucket,
@@ -246,7 +230,7 @@ def _save_raw_to_s3(raw_jobs, settings) -> None:
             ContentType="application/json",
         )
 
-        logger.info(f"Saved raw data to s3://{settings.s3_data_lake_bucket}/{key}")
+        logger.info(f"Saved {len(raw_jobs)} raw jobs to s3://{settings.s3_data_lake_bucket}/{key}")
 
     except Exception as e:
         logger.error(f"S3 save failed: {e}")

@@ -63,12 +63,8 @@ def handler(event, context):
     deduplicator = Deduplicator()
     jobs = deduplicator.deduplicate(jobs, cross_source=True)
 
-    # Deduplicate against existing DB
+    # Load to DynamoDB (insert new or overwrite existing jobs with fresh scraped_at)
     db_loader = DynamoDBLoader()
-    existing_ids = db_loader.get_existing_ids()
-    jobs = deduplicator.deduplicate_against_existing(jobs, existing_ids)
-
-    # Load to DynamoDB
     loaded_count = 0
     if jobs:
         loaded_count = db_loader.load_batch(jobs)

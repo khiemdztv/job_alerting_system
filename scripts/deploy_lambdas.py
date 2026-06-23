@@ -128,7 +128,7 @@ def deploy_lambdas():
     lambda_functions = {
         "vieclambot-scraper": {
             "handler": "lambdas.scraper_handler.handler",
-            "timeout": 300,
+            "timeout": 900,
             "memory": 256,
             "description": "Scrapes jobs from sources and pushes raw data to SQS"
         },
@@ -140,7 +140,7 @@ def deploy_lambdas():
         },
         "vieclambot-matcher": {
             "handler": "lambdas.matcher_handler.handler",
-            "timeout": 60,
+            "timeout": 120,
             "memory": 256,
             "description": "Matches new jobs against subscriptions and alerts users"
         },

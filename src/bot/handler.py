@@ -60,24 +60,30 @@ class TelegramBot:
             The sent message dict on success, None on failure.
         """
         try:
+            payload = {
+                "chat_id": chat_id,
+                "text": text,
+                "disable_web_page_preview": disable_preview,
+            }
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+
             response = requests.post(
                 f"{self.api_url}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": text,
-                    "parse_mode": parse_mode,
-                    "disable_web_page_preview": disable_preview,
-                },
+                json=payload,
                 timeout=10,
             )
 
             if response.status_code != 200:
                 logger.error(
-                    f"Telegram send failed: {response.status_code} {response.text}"
+                    f"Telegram send failed: {response.status_code} {response.text[:500]}"
                 )
                 # Fall back to plain text if MarkdownV2 fails
                 if parse_mode == "MarkdownV2":
-                    return self.send_message(chat_id, text, parse_mode="", disable_preview=disable_preview)
+                    # Strip MarkdownV2 escape characters for clean plain text
+                    import re
+                    plain_text = re.sub(r'\\([_*\[\]()~`>#+\-=|{}.!])', r'\1', text)
+                    return self.send_message(chat_id, plain_text, parse_mode="", disable_preview=disable_preview)
                 return None
 
             return response.json().get("result")
@@ -294,26 +300,77 @@ class TelegramBot:
 
     def _handle_unsubscribe(self, chat_id: str, keyword: str) -> None:
         """Handle /unsubscribe command."""
-        if not keyword:
-            self.send_message(
-                chat_id,
-                "⚠️ Vui lòng nhập từ khóa cần hủy\\.\n_Ví dụ: /unsubscribe data engineer_",
-            )
-            return
-
-        keyword_normalized = keyword.lower().strip()
-
         try:
             dynamodb = boto3.resource("dynamodb", region_name=self.settings.aws_region)
             table = dynamodb.Table(self.settings.dynamodb_users_table)
 
-            table.delete_item(
-                Key={"user_id": chat_id, "sk": f"SUB#{keyword_normalized}"}
+            # Query all active subscriptions for the user
+            response = table.query(
+                KeyConditionExpression="user_id = :uid AND begins_with(sk, :prefix)",
+                ExpressionAttributeValues={
+                    ":uid": chat_id,
+                    ":prefix": "SUB#",
+                },
             )
+            subs = response.get("Items", [])
 
+            if not subs:
+                self.send_message(
+                    chat_id,
+                    "📋 Bạn chưa đăng ký từ khóa nào\\.\n"
+                    "_Dùng /subscribe \\<từ khóa\\> để bắt đầu\\!_",
+                )
+                return
+
+            # If no keyword is provided, list subscriptions and show how to unsubscribe
+            if not keyword:
+                subs_text = "\n".join(
+                    f"  • `/unsubscribe {item.get('keyword_raw', item.get('keyword_normalized', ''))}`"
+                    for item in subs
+                )
+                self.send_message(
+                    chat_id,
+                    f"⚠️ Vui lòng nhập từ khóa cần hủy\\.\n\n"
+                    f"📋 *Các từ khóa bạn đang đăng ký:*\n{subs_text}",
+                )
+                return
+
+            keyword_normalized = keyword.lower().strip()
+
+            # Find matching subscriptions
+            # Match if keyword_normalized is a substring of the subscription key or vice versa
+            matched_subs = []
+            for item in subs:
+                sub_kw = item.get("keyword_normalized", "").lower().strip()
+                if not sub_kw:
+                    continue
+                if keyword_normalized == sub_kw or keyword_normalized in sub_kw or sub_kw in keyword_normalized:
+                    matched_subs.append(item)
+
+            if not matched_subs:
+                subs_text = "\n".join(
+                    f"  • `/unsubscribe {item.get('keyword_raw', item.get('keyword_normalized', ''))}`"
+                    for item in subs
+                )
+                self.send_message(
+                    chat_id,
+                    f"❌ Không tìm thấy từ khóa nào khớp với *{_escape_md(keyword)}*\\.\n\n"
+                    f"📋 *Các từ khóa bạn đang đăng ký:*\n{subs_text}",
+                )
+                return
+
+            # Delete matched subscriptions
+            deleted_kws = []
+            for item in matched_subs:
+                table.delete_item(
+                    Key={"user_id": chat_id, "sk": item["sk"]}
+                )
+                deleted_kws.append(item.get("keyword_raw", item.get("keyword_normalized", "")))
+
+            deleted_text = "\n".join(f"  • *{_escape_md(kw)}*" for kw in deleted_kws)
             self.send_message(
                 chat_id,
-                f"🗑️ Đã hủy đăng ký *{_escape_md(keyword)}*\\.",
+                f"🗑️ *Đã hủy đăng ký thành công các từ khóa sau:*\n{deleted_text}",
             )
 
         except ClientError as e:
@@ -575,6 +632,7 @@ class TelegramBot:
             from src.scrapers.itviec_scraper import ITviecScraper
             from src.scrapers.careerviet_scraper import CareerVietScraper
             from src.scrapers.timviec365_scraper import TimViec365Scraper
+            from src.scrapers.ybox_scraper import YBoxScraper
             from src.scrapers.jooble_scraper import JoobleScraper
             from src.etl.transformer import Transformer
 
@@ -584,6 +642,7 @@ class TelegramBot:
                 ITviecScraper(),
                 CareerVietScraper(),
                 TimViec365Scraper(),
+                YBoxScraper(),
             ]
             if self.settings.jooble_api_key:
                 scrapers.append(JoobleScraper())

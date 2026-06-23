@@ -15,6 +15,7 @@ from src.scrapers.itviec_scraper import ITviecScraper
 from src.scrapers.careerviet_scraper import CareerVietScraper
 from src.scrapers.timviec365_scraper import TimViec365Scraper
 from src.scrapers.jooble_scraper import JoobleScraper
+from src.scrapers.ybox_scraper import YBoxScraper
 from src.etl.transformer import Transformer
 from src.common.logger import get_logger
 
@@ -63,9 +64,16 @@ def test_live():
     if jb_jobs:
         print(f"First job: {jb_jobs[0].title} @ {jb_jobs[0].company} (Salary: {jb_jobs[0].salary_raw})")
 
+    print("\n=== Testing Ybox Scraper ===")
+    yb = YBoxScraper()
+    yb_jobs = yb.scrape("data engineer", max_pages=1)
+    print(f"Scraped {len(yb_jobs)} raw jobs from Ybox")
+    if yb_jobs:
+        print(f"First job: {yb_jobs[0].title} @ {yb_jobs[0].company} (Salary: {yb_jobs[0].salary_raw})")
+
     print("\n=== Testing ETL Transformation ===")
     transformer = Transformer()
-    all_raw = cl_jobs + vl_jobs + it_jobs + cv_jobs + tv_jobs + jb_jobs
+    all_raw = cl_jobs + vl_jobs + it_jobs + cv_jobs + tv_jobs + jb_jobs + yb_jobs
     print(f"Total raw jobs: {len(all_raw)}")
     
     transformed_jobs = transformer.transform_batch(all_raw)
