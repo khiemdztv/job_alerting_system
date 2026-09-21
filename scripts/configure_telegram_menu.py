@@ -15,6 +15,7 @@ COMMANDS = [
     {"command": "start", "description": "Mở ViecLamBot"},
     {"command": "menu", "description": "Hiện menu chính"},
     {"command": "search", "description": "Tìm việc theo nghề và khu vực"},
+    {"command": "web", "description": "Tìm thêm việc mới trên Internet"},
     {"command": "subscribe", "description": "Tạo thông báo việc làm"},
     {"command": "myjobs", "description": "Xem việc phù hợp với đăng ký"},
     {"command": "list", "description": "Xem các thông báo đã đăng ký"},

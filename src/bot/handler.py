@@ -44,6 +44,7 @@ MENU_MY_JOBS = "🎯 Việc phù hợp"
 MENU_SUBSCRIBE = "🔔 Tạo thông báo"
 MENU_SUBSCRIPTIONS = "📋 Đăng ký của tôi"
 MENU_MORE = "➡️ Xem thêm"
+MENU_WEB_SEARCH = "🌐 Tìm thêm trên web"
 MENU_UNSUBSCRIBE = "🗑 Hủy thông báo"
 MENU_HELP = "❓ Hướng dẫn"
 MENU_ACTIONS = {
@@ -52,6 +53,7 @@ MENU_ACTIONS = {
     MENU_SUBSCRIBE,
     MENU_SUBSCRIPTIONS,
     MENU_MORE,
+    MENU_WEB_SEARCH,
     MENU_UNSUBSCRIBE,
     MENU_HELP,
 }
@@ -63,8 +65,8 @@ def main_menu_markup() -> dict[str, Any]:
         "keyboard": [
             [{"text": MENU_SEARCH}, {"text": MENU_MY_JOBS}],
             [{"text": MENU_SUBSCRIBE}, {"text": MENU_SUBSCRIPTIONS}],
-            [{"text": MENU_MORE}, {"text": MENU_UNSUBSCRIBE}],
-            [{"text": MENU_HELP}],
+            [{"text": MENU_MORE}, {"text": MENU_WEB_SEARCH}],
+            [{"text": MENU_UNSUBSCRIBE}, {"text": MENU_HELP}],
         ],
         "resize_keyboard": True,
         "is_persistent": True,
@@ -80,6 +82,7 @@ class TelegramBot:
         self.token = self.settings.telegram_bot_token
         self.api_url = f"https://api.telegram.org/bot{self.token}"
         self.db_loader = DynamoDBLoader()
+        self._you_search_client = None
         self._request_deadline_at: float | None = None
 
     # ── Telegram API Methods ────────────────────────────────────
@@ -268,6 +271,15 @@ class TelegramBot:
             parse_mode="",
         )
 
+    def _prompt_web_search(self, chat_id: str) -> None:
+        self._set_pending_action(chat_id, "web_search")
+        self.send_message(
+            chat_id,
+            "🌐 Nhập nghề hoặc kỹ năng để tìm thêm trên Internet. "
+            "Có thể thêm khu vực sau dấu |.\nVí dụ: oracle intern | HCM",
+            parse_mode="",
+        )
+
     def _prompt_subscribe(self, chat_id: str) -> None:
         self._set_pending_action(chat_id, "subscribe")
         self.send_message(
@@ -354,6 +366,12 @@ class TelegramBot:
                     self._handle_search(chat_id, keyword)
                 else:
                     self._prompt_search(chat_id)
+            elif text.startswith("/web"):
+                keyword = text.replace("/web", "", 1).strip()
+                if keyword:
+                    self._handle_web_search(chat_id, keyword)
+                else:
+                    self._prompt_web_search(chat_id)
             elif text == "/more":
                 self._handle_more(chat_id)
             elif text.startswith("/health"):
@@ -372,6 +390,8 @@ class TelegramBot:
                 self._handle_list(chat_id)
             elif text == MENU_MORE:
                 self._handle_more(chat_id)
+            elif text == MENU_WEB_SEARCH:
+                self._prompt_web_search(chat_id)
             elif text == MENU_UNSUBSCRIBE:
                 self._prompt_unsubscribe(chat_id)
             elif text == MENU_HELP:
@@ -388,6 +408,8 @@ class TelegramBot:
                     self._handle_subscribe(chat_id, text)
                 elif pending_action == "unsubscribe":
                     self._handle_unsubscribe(chat_id, text)
+                elif pending_action == "web_search":
+                    self._handle_web_search(chat_id, text)
                 else:
                     # Search is also the default for ordinary text.
                     self._handle_search(chat_id, text)
@@ -752,6 +774,25 @@ class TelegramBot:
             jobs = self.db_loader.search_jobs(query, limit=self.settings.search_result_limit,
                                               location=location,
                                               deadline_at=self._request_deadline_at)
+            used_web = False
+            threshold = self.settings.you_search_auto_threshold
+            if (
+                self.settings.you_search_enabled
+                and threshold > 0
+                and len(jobs) < threshold
+            ):
+                try:
+                    web_jobs = self._search_web(
+                        query,
+                        location,
+                        limit=min(20, self.settings.search_result_limit - len(jobs)),
+                    )
+                    jobs = self._merge_unique_jobs(jobs, web_jobs)
+                    used_web = bool(web_jobs)
+                except Exception:
+                    # Database results remain useful when the optional provider
+                    # is unavailable or out of credit.
+                    logger.exception("Automatic You.com fallback failed")
             if not jobs:
                 message = f"Chưa có việc phù hợp với ‘{query}’"
                 if location:
@@ -763,6 +804,8 @@ class TelegramBot:
                 self.send_message(chat_id, message, parse_mode="")
                 return
             heading = f"🔍 {query}" + (f" · {location}" if location else "")
+            if used_web:
+                heading += " · có kết quả web"
             self._save_search(chat_id, jobs, heading)
             self._handle_more(chat_id, message_id)
         except Exception:
@@ -772,10 +815,96 @@ class TelegramBot:
                 return
             self.send_message(chat_id, message, parse_mode="")
 
+    def _search_web(
+        self,
+        query: str,
+        location: str | None,
+        *,
+        limit: int,
+    ) -> list[dict]:
+        from src.web_search import YouSearchClient
+
+        if self._you_search_client is None:
+            self._you_search_client = YouSearchClient(self.settings)
+        return self._you_search_client.search(
+            query,
+            location=location,
+            limit=limit,
+            deadline_at=self._request_deadline_at,
+        )
+
+    @staticmethod
+    def _merge_unique_jobs(primary: list[dict], extra: list[dict]) -> list[dict]:
+        from src.matcher.search import identity
+
+        merged, seen = [], set()
+        for job in [*primary, *extra]:
+            key = identity(job)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(job)
+        return merged
+
+    def _handle_web_search(self, chat_id: str, keyword: str) -> None:
+        from src.matcher.search import concepts, parse_search
+        from src.web_search import YouSearchError
+
+        query, location = parse_search(keyword)
+        if not concepts(query):
+            self.send_message(
+                chat_id,
+                "Nhập nghề hoặc kỹ năng cần tìm, ví dụ: /web data analyst intern | HCM",
+                parse_mode="",
+            )
+            return
+        if not self.settings.you_search_enabled:
+            self.send_message(
+                chat_id,
+                "Tìm kiếm web chưa được bật trên hệ thống.",
+                parse_mode="",
+            )
+            return
+
+        temp = self.send_message(
+            chat_id,
+            "🌐 Đang tìm và kiểm tra việc làm mới trên Internet…",
+            parse_mode="",
+        )
+        message_id = temp.get("message_id") if temp else None
+        try:
+            jobs = self._search_web(query, location, limit=20)
+            if not jobs:
+                message = (
+                    f"Chưa tìm thấy tin tuyển dụng web đáng tin cậy cho ‘{query}’. "
+                    "Hãy thử tên nghề ngắn hơn hoặc bỏ bớt địa điểm."
+                )
+                if message_id and self.edit_message(chat_id, message_id, message, parse_mode=""):
+                    return
+                self.send_message(chat_id, message, parse_mode="")
+                return
+            heading = f"🌐 Kết quả web · {query}" + (
+                f" · {location}" if location else ""
+            )
+            self._save_search(chat_id, jobs, heading)
+            self._handle_more(chat_id, message_id)
+        except YouSearchError as exc:
+            message = f"Không thể tìm trên web lúc này: {exc}."
+            if message_id and self.edit_message(chat_id, message_id, message, parse_mode=""):
+                return
+            self.send_message(chat_id, message, parse_mode="")
+        except Exception:
+            logger.exception("Web search failed")
+            message = "Tìm kiếm web đang có lỗi. Vui lòng thử lại sau."
+            if message_id and self.edit_message(chat_id, message_id, message, parse_mode=""):
+                return
+            self.send_message(chat_id, message, parse_mode="")
+
     def _handle_help(self, chat_id: str) -> None:
         self.send_message(chat_id,
             "📖 Cách dùng ViecLamBot\n\n"
             "/search kế toán | HCM — Tìm theo nghề và địa điểm\n"
+            "/web data analyst intern | HCM — Tìm thêm việc mới trên Internet\n"
             "Bạn cũng có thể gõ: tìm việc kế toán tại HCM\n"
             "/more — Xem tiếp kết quả, phiên tìm giữ trong 1 giờ\n"
             "/subscribe python | Hà Nội — Nhận tin phù hợp\n"

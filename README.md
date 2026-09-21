@@ -253,6 +253,9 @@ Key variables configured in `.env` include:
 * `VIECLAMBOT_S3_DATA_LAKE_BUCKET`: S3 bucket name for raw scraping backups.
 * `VIECLAMBOT_SQS_RAW_JOBS_QUEUE`: SQS queue name for raw scraped postings.
 * `VIECLAMBOT_JOOBLE_API_KEY`: API key for Jooble API scraper.
+* `VIECLAMBOT_YOU_SEARCH_ENABLED`: Enables verified You.com web-search fallback.
+* `VIECLAMBOT_YOU_API_KEY_SECRET_ARN`: Secrets Manager ARN/name holding `YDC_API_KEY`.
+* `VIECLAMBOT_YOU_SEARCH_AUTO_THRESHOLD`: Searches the web when local results are below this count.
 * `VIECLAMBOT_LOG_LEVEL`: Log levels (`INFO`, `DEBUG`).
 
 ---
@@ -281,6 +284,8 @@ Register or repair the Telegram slash-command menu with UTF-8 verification:
 * `/myjobs` or `/jobs`: Displays paginated jobs matching the user's subscriptions.
 * `/search <keyword> [| location]`: Searches the normalized DynamoDB snapshot, saves up to 100
   ranked results for one hour, and uses `/more` for pagination.
+* `/web <keyword> [| location]`: Searches current web results through You.com, rejects articles,
+  courses, profiles, conflicting locations and duplicate URLs, then paginates verified job links.
 * `/cancel`: Cancels a pending menu input.
 * `/help`: Detailed help manual.
 * **Direct Text Input**: Non-command messages automatically trigger `/search`.

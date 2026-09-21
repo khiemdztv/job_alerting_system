@@ -27,6 +27,17 @@ class Settings(BaseSettings):
 
     # ── Scrapers ─────────────────────────────────────────────────
     jooble_api_key: Optional[str] = Field(default=None, description="Jooble API key (free)")
+    you_api_key: Optional[str] = Field(default=None, description="You.com Search API key")
+    you_api_key_secret_arn: Optional[str] = Field(
+        default=None,
+        description="AWS Secrets Manager ARN/name containing the You.com API key",
+    )
+    you_search_enabled: bool = Field(default=False)
+    you_search_endpoint: str = Field(default="https://ydc-index.io/v1/search")
+    you_search_count: int = Field(default=25, ge=1, le=100)
+    you_search_timeout_seconds: float = Field(default=8.0, ge=2.0, le=15.0)
+    you_search_freshness: str = Field(default="month")
+    you_search_auto_threshold: int = Field(default=5, ge=0, le=20)
     scrape_delay_seconds: float = Field(default=2.0, description="Delay between requests")
     scrape_max_pages: int = Field(default=5, description="Max pages per source per run")
     user_agent: str = Field(

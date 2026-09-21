@@ -1,6 +1,11 @@
 from unittest.mock import Mock
 
-from src.bot.handler import MENU_SEARCH, TelegramBot, _processed_update_ids
+from src.bot.handler import (
+    MENU_SEARCH,
+    MENU_WEB_SEARCH,
+    TelegramBot,
+    _processed_update_ids,
+)
 from src.bot.messages import job_pages
 
 
@@ -87,6 +92,46 @@ def test_search_menu_button_sets_conversation_state(database, monkeypatch):
     state = database[1].get_item(Key={"user_id": "123", "sk": "BOT#STATE"})["Item"]
     assert state["action"] == "search"
     assert "nhập nghề" in send.call_args.args[1]
+
+
+def test_web_search_menu_button_sets_conversation_state(database, monkeypatch):
+    _processed_update_ids.clear()
+    bot = TelegramBot()
+    send = Mock(return_value={"message_id": 1})
+    monkeypatch.setattr(bot, "send_message", send)
+
+    bot.handle_webhook(
+        {
+            "update_id": 102,
+            "message": {"chat": {"id": 123}, "from": {}, "text": MENU_WEB_SEARCH},
+        }
+    )
+
+    state = database[1].get_item(Key={"user_id": "123", "sk": "BOT#STATE"})["Item"]
+    assert state["action"] == "web_search"
+    assert "Internet" in send.call_args.args[1]
+
+
+def test_explicit_web_search_saves_verified_results(database, make_job, monkeypatch):
+    bot = TelegramBot()
+    bot.settings.you_search_enabled = True
+    web_job = make_job(
+        source="Web · Acme",
+        source_url="https://acme.example/careers/data",
+    )
+    monkeypatch.setattr(bot, "_search_web", Mock(return_value=[web_job]))
+    save = Mock()
+    more = Mock()
+    monkeypatch.setattr(bot, "_save_search", save)
+    monkeypatch.setattr(bot, "_handle_more", more)
+    monkeypatch.setattr(bot, "send_message", Mock(return_value={"message_id": 9}))
+
+    bot._handle_web_search("123", "data engineer | HCM")
+
+    save.assert_called_once()
+    assert save.call_args.args[1] == [web_job]
+    assert "Kết quả web" in save.call_args.args[2]
+    more.assert_called_once_with("123", 9)
 
 
 def test_persistent_update_claim_blocks_retry_in_new_container(database, monkeypatch):
