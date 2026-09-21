@@ -37,6 +37,9 @@ def build_package(zip_path, temp_dir):
         subprocess.run([
             sys.executable, "-m", "pip", "install",
             "--platform", "manylinux2014_x86_64",
+            "--python-version", "3.12",
+            "--implementation", "cp",
+            "--abi", "cp312",
             "--only-binary=:all:",
             "-t", temp_dir,
             *dependencies
@@ -77,6 +80,10 @@ def build_package(zip_path, temp_dir):
                     rel_path = os.path.relpath(full_path, project_root)
                     zip_file.write(full_path, rel_path)
 
+    with zipfile.ZipFile(zip_path) as built:
+        if not any(name.startswith("pydantic_core/_pydantic_core.cpython-312-")
+                   and name.endswith(".so") for name in built.namelist()):
+            raise RuntimeError("Package must contain the Linux CPython 3.12 pydantic_core binary")
     print(f"Deployment ZIP archive built: {zip_path} ({os.path.getsize(zip_path) / 1024 / 1024:.2f} MB)")
     return True
 
@@ -129,7 +136,7 @@ def deploy_lambdas():
         "vieclambot-scraper": {
             "handler": "lambdas.scraper_handler.handler",
             "timeout": 900,
-            "memory": 256,
+            "memory": 512,
             "description": "Scrapes jobs from sources and pushes raw data to SQS"
         },
         "vieclambot-etl": {
@@ -140,14 +147,14 @@ def deploy_lambdas():
         },
         "vieclambot-matcher": {
             "handler": "lambdas.matcher_handler.handler",
-            "timeout": 120,
-            "memory": 256,
+            "timeout": 300,
+            "memory": 1024,
             "description": "Matches new jobs against subscriptions and alerts users"
         },
         "vieclambot-webhook": {
             "handler": "lambdas.bot_webhook_handler.handler",
             "timeout": 30,
-            "memory": 128,
+            "memory": 1024,
             "description": "Telegram Bot webhook handler to process user commands"
         }
     }
@@ -161,6 +168,12 @@ def deploy_lambdas():
         "VIECLAMBOT_S3_DATA_LAKE_BUCKET": settings.s3_data_lake_bucket,
         "VIECLAMBOT_SQS_RAW_JOBS_QUEUE": settings.sqs_raw_jobs_queue,
         "VIECLAMBOT_LOG_LEVEL": settings.log_level,
+        "VIECLAMBOT_ALERT_RECOVERY_DAYS": str(settings.alert_recovery_days),
+        "VIECLAMBOT_ALERT_MAX_JOBS_PER_USER": str(settings.alert_max_jobs_per_user),
+        "VIECLAMBOT_SCRAPE_MAX_PAGES": str(settings.scrape_max_pages),
+        "VIECLAMBOT_SCRAPE_WORKERS": str(settings.scrape_workers),
+        "VIECLAMBOT_SEARCH_RESULT_LIMIT": str(settings.search_result_limit),
+        "VIECLAMBOT_MAX_SUBSCRIPTIONS": str(settings.max_subscriptions),
     }
     if settings.telegram_bot_token:
         env_vars["VIECLAMBOT_TELEGRAM_BOT_TOKEN"] = settings.telegram_bot_token
@@ -251,7 +264,7 @@ def deploy_lambdas():
     try:
         scraper_rule = events_client.put_rule(
             Name="vieclambot-scraper-schedule",
-            ScheduleExpression="rate(6 hours)",
+            ScheduleExpression="cron(0 */6 * * ? *)",
             State="ENABLED",
             Description="Triggers scraper every 6 hours"
         )
@@ -276,13 +289,13 @@ def deploy_lambdas():
     except Exception as e:
         print(f"Failed to configure Scraper schedule: {e}")
 
-    # 2. Matcher rule (Runs every 6 hours, offset by 15 mins to let ETL finish)
+    # 2. Matcher rule (Runs every 6 hours, offset by 20 mins to let ETL finish)
     try:
         matcher_rule = events_client.put_rule(
             Name="vieclambot-matcher-schedule",
-            ScheduleExpression="cron(15 */6 * * ? *)",
+            ScheduleExpression="cron(20 */6 * * ? *)",
             State="ENABLED",
-            Description="Triggers matcher 15 minutes after scraper"
+            Description="Triggers matcher 20 minutes after scraper"
         )
         events_client.put_targets(
             Rule="vieclambot-matcher-schedule",

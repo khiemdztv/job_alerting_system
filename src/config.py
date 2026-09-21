@@ -5,7 +5,6 @@ Uses pydantic-settings for environment variable parsing with validation.
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from typing import Optional
 
@@ -41,9 +40,19 @@ class Settings(BaseSettings):
     # ── Telegram ─────────────────────────────────────────────────
     telegram_bot_token: Optional[str] = Field(default=None)
     telegram_webhook_url: Optional[str] = Field(default=None)
+    admin_chat_id: Optional[str] = Field(
+        default=None,
+        description="Telegram chat ID for admin alerts (scraper health)",
+    )
 
     # ── Scheduler ────────────────────────────────────────────────
     alert_interval_hours: int = Field(default=6, description="Hours between alerts")
+    alert_recovery_days: int = Field(default=7, ge=1, le=60)
+    alert_max_jobs_per_user: int = Field(default=15, ge=1, le=50)
+    search_result_limit: int = Field(default=100, ge=10, le=200)
+    search_snapshot_cache_seconds: int = Field(default=300, ge=0, le=3600)
+    max_subscriptions: int = Field(default=10, ge=1, le=50)
+    scrape_workers: int = Field(default=4, ge=1, le=8)
     alert_cron_expressions: list[str] = Field(
         default=["cron(0 0 * * ? *)", "cron(0 6 * * ? *)",
                  "cron(0 12 * * ? *)", "cron(0 18 * * ? *)"],

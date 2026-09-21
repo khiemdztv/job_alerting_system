@@ -10,17 +10,20 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 # Add project root to path for Lambda
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.common.logger import get_logger
-from src.common.models import JobSource
+from src.common.scraper_health import ScrapeResult, ScrapeStatus, record_health
 from src.config import get_settings
 from src.data_quality.validators import RawJobValidator
 from src.scrapers.careerlink_scraper import CareerLinkScraper
 from src.scrapers.careerviet_scraper import CareerVietScraper
+from src.scrapers.chotot_scraper import ChototScraper
 from src.scrapers.itviec_scraper import ITviecScraper
 from src.scrapers.jooble_scraper import JoobleScraper
 from src.scrapers.timviec365_scraper import TimViec365Scraper
@@ -29,14 +32,20 @@ from src.scrapers.ybox_scraper import YBoxScraper
 
 logger = get_logger(__name__)
 
-# Seed keywords — kept minimal to avoid Lambda timeout.
+# Seed keywords — multi-industry to ensure broad coverage.
+# Rotated per run cycle to avoid Lambda timeout.
 # User subscription keywords are ALWAYS added on top of these.
-SEED_KEYWORDS = [
-    "software engineer",
-    "data engineer",
-    "kế toán",
-    "marketing",
-    "nhân sự",
+SEED_KEYWORD_GROUPS = [
+    # Group 1: Business / Finance
+    ["kế toán", "kinh doanh", "bán hàng", "tài chính", "ngân hàng"],
+    # Group 2: Tech / IT
+    ["software engineer", "data engineer", "lập trình", "it", "developer"],
+    # Group 3: Services / Admin
+    ["nhân sự", "marketing", "hành chính", "thiết kế", "truyền thông"],
+    # Group 4: Industry / Specialist
+    ["logistics", "xây dựng", "y tế", "giáo viên", "điều dưỡng"],
+    # Group 5: Entry-level / F&B
+    ["thực tập", "fresher", "bán hàng", "nhà hàng", "kho vận"],
 ]
 
 
@@ -63,52 +72,38 @@ def handler(event, context):
         CareerVietScraper(),
         TimViec365Scraper(),
         YBoxScraper(),
+        ChototScraper(),    # New: multi-industry (blue-collar, retail, F&B)
     ]
 
     # Add Jooble if API key is configured
     if settings.jooble_api_key:
         scrapers.append(JoobleScraper())
     else:
-        logger.warning("Jooble API key not set, skipping Jooble scraper")
+        logger.info("Jooble API key not set, skipping Jooble scraper")
 
     # Get keywords from subscriptions + defaults
     keywords = _get_active_keywords(settings)
 
-    # Validate
-    validator = RawJobValidator()
-
-    # Scrape all sources for all keywords.
-    # IMPORTANT: Push to SQS after EACH source to avoid losing data on timeout.
-    total_raw_jobs = 0
-    results = {}
-
-    for scraper in scrapers:
-        source_name = scraper.source.value
-        source_jobs = []
-
-        for keyword in keywords:
-            jobs = scraper.scrape_safe(keyword, max_pages=1)
-            source_jobs.extend(jobs)
-
-        # Validate
-        valid_jobs, quality_report = validator.validate_batch(source_jobs)
-
-        results[source_name] = {
-            "total_scraped": len(source_jobs),
-            "valid": len(valid_jobs),
-            "pass_rate": quality_report.pass_rate,
-        }
-
-        logger.info(
-            f"{source_name}: scraped {len(source_jobs)}, valid {len(valid_jobs)}",
-            extra={"source": source_name, "job_count": len(valid_jobs)},
-        )
-
-        # Push this source's jobs to SQS immediately (stream-style)
-        if valid_jobs:
-            _push_to_sqs(valid_jobs, settings)
-            _save_raw_to_s3(valid_jobs, settings, source_name)
-            total_raw_jobs += len(valid_jobs)
+    deadline = time.monotonic() + (
+        context.get_remaining_time_in_millis() / 1000 - 45 if context else 840
+    )
+    total_raw_jobs, results = 0, {}
+    failures = []
+    # One worker owns one source/session. Persist each keyword immediately.
+    with ThreadPoolExecutor(max_workers=settings.scrape_workers) as pool:
+        futures = {pool.submit(_scrape_source, scraper, keywords, settings, deadline):
+                   scraper.source.value for scraper in scrapers}
+        for future in as_completed(futures):
+            source = futures[future]
+            try:
+                results[source] = future.result()
+                total_raw_jobs += results[source]["valid"]
+            except Exception:
+                logger.exception("Source pipeline failed: %s", source)
+                failures.append(source)
+                results[source] = {"status": "error", "valid": 0}
+    if failures:
+        raise RuntimeError(f"Sources failed to persist jobs: {failures}")
 
     duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
 
@@ -135,8 +130,13 @@ def _get_active_keywords(settings) -> list[str]:
     User-subscribed keywords are ALWAYS included, ensuring any industry
     a user subscribes to will be scraped automatically.
     """
-    # Start with seed keywords for baseline multi-industry coverage
-    keywords = set(SEED_KEYWORDS)
+    keywords = set()
+
+    # Select seed keyword group based on hour (rotate every 6h)
+    now = datetime.now(timezone.utc)
+    group_idx = int(now.timestamp() // (settings.alert_interval_hours * 3600)) % len(SEED_KEYWORD_GROUPS)
+    selected_group = SEED_KEYWORD_GROUPS[group_idx]
+    logger.info(f"Using seed keyword group {group_idx + 1}/{len(SEED_KEYWORD_GROUPS)}: {selected_group}")
 
     try:
         import boto3
@@ -168,12 +168,18 @@ def _get_active_keywords(settings) -> list[str]:
                 if kw:
                     keywords.add(kw)
 
-        logger.info(f"Loaded {len(keywords)} keywords ({len(keywords) - len(SEED_KEYWORDS)} from subscriptions)")
+        logger.info("Loaded %s subscription keywords", len(keywords))
 
     except Exception as e:
         logger.warning(f"Could not load subscription keywords: {e}")
+        raise
 
-    return list(keywords)
+    priority = sorted(keywords)
+    # Rotate priorities across runs so a slow source cannot starve later keywords.
+    if priority:
+        offset = int(now.timestamp() // (settings.alert_interval_hours * 3600)) % len(priority)
+        priority = priority[offset:] + priority[:offset]
+    return priority + [kw for kw in selected_group if kw not in keywords]
 
 
 def _push_to_sqs(raw_jobs, settings) -> None:
@@ -200,15 +206,23 @@ def _push_to_sqs(raw_jobs, settings) -> None:
                     ),
                 })
 
-            sqs.send_message_batch(
-                QueueUrl=queue_url,
-                Entries=entries,
-            )
+            pending = entries
+            for attempt in range(3):
+                response = sqs.send_message_batch(QueueUrl=queue_url, Entries=pending)
+                failed = {item["Id"] for item in response.get("Failed", [])}
+                pending = [entry for entry in pending if entry["Id"] in failed]
+                if not pending:
+                    break
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+            if pending:
+                raise RuntimeError(f"SQS rejected {len(pending)} jobs after retries")
 
         logger.info(f"Pushed {len(raw_jobs)} jobs to SQS")
 
     except Exception as e:
         logger.error(f"SQS push failed: {e}")
+        raise
 
 
 
@@ -234,3 +248,33 @@ def _save_raw_to_s3(raw_jobs, settings, source_name: str = "all_sources") -> Non
 
     except Exception as e:
         logger.error(f"S3 save failed: {e}")
+
+
+def _scrape_source(scraper, keywords, settings, deadline):
+    scraper.deadline_at = deadline
+    validator = RawJobValidator()
+    count, raw_count, errors = 0, 0, []
+    started = time.monotonic()
+    completed = 0
+    for keyword in keywords:
+        if time.monotonic() + 25 >= deadline:
+            break
+        jobs = scraper.scrape_safe(keyword, max_pages=settings.scrape_max_pages)
+        raw_count += len(jobs)
+        valid, _ = validator.validate_batch(jobs)
+        if scraper.last_error:
+            errors.append(scraper.last_error)
+        if valid:
+            _save_raw_to_s3(valid, settings, scraper.source.value)
+            _push_to_sqs(valid, settings)
+            count += len(valid)
+        completed += 1
+    status = ScrapeStatus.OK if count else (ScrapeStatus.ERROR if errors else ScrapeStatus.EMPTY)
+    record_health(ScrapeResult(
+        source=scraper.source.value, keyword=",".join(keywords[:3]),
+        status=status, job_count=count, error=",".join(sorted(set(errors))),
+        duration_ms=int((time.monotonic() - started) * 1000),
+    ), settings)
+    scraper.session.close()
+    return {"total_scraped": raw_count, "valid": count, "status": status.value,
+            "keywords_completed": completed, "keywords_deferred": len(keywords) - completed}

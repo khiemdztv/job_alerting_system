@@ -8,11 +8,13 @@ Uses caching to avoid creating duplicate clients.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
-from mypy_boto3_s3 import S3Client
-from mypy_boto3_sqs import SQSClient
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb import DynamoDBServiceResource
+    from mypy_boto3_s3 import S3Client
+    from mypy_boto3_sqs import SQSClient
 
 from src.config import get_settings
 

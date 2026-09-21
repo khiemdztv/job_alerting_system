@@ -2,6 +2,8 @@
 
 Live Telegram Bot: [https://t.me/cty_khong_bot](https://t.me/cty_khong_bot)
 
+Current alert/search fixes, verification results and deployment notes: [UPGRADE_REPORT.md](UPGRADE_REPORT.md).
+
 **ViecLamBot** is a serverless Vietnamese job aggregator and notification system designed to crawl, process, filter, and deliver job opportunities in Vietnam directly to users via Telegram. It supports parallel search, Vietnamese spelling tolerance, source interleaving, location-aware filtering, and resilient serverless workflows on AWS.
 
 ---
@@ -257,20 +259,33 @@ Key variables configured in `.env` include:
 
 ## Telegram Bot Commands
 
+The bot attaches a persistent reply keyboard to its messages. Users can search, view matched
+jobs, create or remove alerts, list subscriptions, request the next result page, and open help
+without memorizing slash commands. `/menu` shows the keyboard again.
+
+Register or repair the Telegram slash-command menu with UTF-8 verification:
+
+```powershell
+& ./dist/python/python.exe scripts/configure_telegram_menu.py
+```
+
 * `/start`: Registers user profiles and shows the welcome message.
 * `/subscribe <keyword> [| location]`: Subscribes to alerts.
   * _Example:_ `/subscribe data analyst | hồ chí minh`
   * _Example:_ `/subscribe Python | Hà Nội`
-  * Maximum 3 active subscriptions.
+  * Maximum 10 active subscriptions by default.
 * `/unsubscribe <keyword>`: Unsubscribes from a keyword.
-  * Running `/unsubscribe` without keywords displays all active subscriptions with clickable, pre-filled unsubscribe commands.
+  * `/unsubscribe all` removes every subscription.
   * Matches the keyword loosely (substring matching). Removes matches and lists what was deleted.
 * `/list`: Lists active subscription keywords.
-* `/myjobs` or `/jobs`: Displays the top 20 latest jobs matching the user's subscriptions, filtered by age and interleaved across sources.
-* `/search <keyword> [| location]`: Triggers a live parallel search (crawls 1 page from each source in real-time), saves results, and displays the top 20 interleaved matches.
-  * **Status Message**: Immediately sends a `"🔍 Đang tìm kiếm việc làm trực tiếp từ các nguồn, vui lòng đợi trong giây lát..."` placeholder that edits itself to show the final results when finished.
+* `/myjobs` or `/jobs`: Displays paginated jobs matching the user's subscriptions.
+* `/search <keyword> [| location]`: Searches the normalized DynamoDB snapshot, saves up to 100
+  ranked results for one hour, and uses `/more` for pagination.
+* `/cancel`: Cancels a pending menu input.
 * `/help`: Detailed help manual.
 * **Direct Text Input**: Non-command messages automatically trigger `/search`.
+* **Retry Safety**: Telegram `update_id` claims are stored in DynamoDB for 24 hours so webhook
+  retries cannot create duplicate searches or duplicate status messages.
 * **MarkdownV2 Fallback**: If sending text in MarkdownV2 style fails (due to escaping issues), the bot automatically strips MarkdownV2 escape characters and sends plain text to guarantee delivery.
 
 ---

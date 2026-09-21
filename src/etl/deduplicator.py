@@ -13,8 +13,6 @@ Strategy:
 
 from __future__ import annotations
 
-import hashlib
-from typing import Optional
 
 from src.common.logger import get_logger
 from src.common.models import Job
@@ -45,8 +43,7 @@ class Deduplicator:
         Returns:
             16-char hex hash string.
         """
-        raw = f"{job.title_normalized}|{job.company.lower().strip()}|{job.source.value}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        return job.computed_job_id
 
     def compute_cross_source_hash(self, job: Job) -> str:
         """Compute hash ignoring source (for cross-source dedup).
@@ -60,8 +57,8 @@ class Deduplicator:
         Returns:
             16-char hex hash string.
         """
-        raw = f"{job.title_normalized}|{job.company.lower().strip()}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        from src.matcher.search import identity
+        return identity(job.to_dynamo_item())
 
     def is_duplicate(self, job: Job, cross_source: bool = False) -> bool:
         """Check if a job is a duplicate within the current batch.
@@ -84,8 +81,29 @@ class Deduplicator:
         self._seen_hashes.add(hash_val)
         return False
 
+    @staticmethod
+    def _completeness_score(job: Job) -> int:
+        """Score a job by data completeness. Higher = more complete.
+
+        Aggregator sources (jooble, careerjet) get a penalty since
+        they re-crawl from primary sources and often have less data.
+        """
+        score = sum(bool(x) for x in [
+            job.company, job.salary_raw, job.location,
+            job.description, job.posted_at,
+        ])
+        # Aggregator penalty: prefer primary sources
+        if job.source.value in ("jooble", "careerjet"):
+            score -= 1
+        return score
+
     def deduplicate(self, jobs: list[Job], cross_source: bool = True) -> list[Job]:
-        """Remove duplicates from a list of jobs.
+        """Remove duplicates, keeping the MOST COMPLETE record for each group.
+
+        Unlike the old version that kept the first record encountered,
+        this version compares completeness scores and keeps the best one.
+        This prevents aggregators from shadowing primary sources AND ensures
+        the most data-rich version is stored.
 
         Args:
             jobs: List of jobs to deduplicate.
@@ -93,20 +111,21 @@ class Deduplicator:
                          CareerLink and Jooble = 1 result).
 
         Returns:
-            Deduplicated list of jobs.
+            Deduplicated list of jobs (best version of each).
         """
-        self.reset()
-        unique_jobs: list[Job] = []
+        best: dict[str, Job] = {}
 
         for job in jobs:
-            if not self.is_duplicate(job, cross_source=cross_source):
-                unique_jobs.append(job)
+            h = self.compute_cross_source_hash(job) if cross_source else self.compute_hash(job)
+            if h not in best or self._completeness_score(job) > self._completeness_score(best[h]):
+                best[h] = job
 
+        unique_jobs = list(best.values())
         dedup_count = len(jobs) - len(unique_jobs)
         if dedup_count > 0:
             logger.info(
                 f"Deduplication: {len(jobs)} → {len(unique_jobs)} "
-                f"({dedup_count} duplicates removed)",
+                f"({dedup_count} duplicates removed, kept best records)",
                 extra={"job_count": len(unique_jobs)},
             )
 

@@ -11,6 +11,7 @@ import hashlib
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
@@ -22,13 +23,12 @@ class JobSource(str, Enum):
     """Supported job data sources."""
     JOOBLE = "jooble"
     CAREERLINK = "careerlink"
-    TIMVIECNHANH = "timviecnhanh"
     VIECLAM24H = "vieclam24h"
-    MYWORK = "mywork"
     ITVIEC = "itviec"
     CAREERVIET = "careerviet"
     TIMVIEC365 = "timviec365"
     YBOX = "ybox"
+    CHOTOT = "chotot"
 
 
 class JobType(str, Enum):
@@ -105,19 +105,30 @@ class Job(BaseModel):
     # Flags
     is_new: bool = True
 
+    # Search — precomputed blob for full-text matching (computed at ETL time)
+    search_blob: str = ""  # cleaned VN text of title+company+desc+reqs+tags
+
     @computed_field
     @property
     def computed_job_id(self) -> str:
-        """Generate deterministic job ID from title + company + source."""
+        """Stable source URL identity; fallback includes location for URL-less jobs."""
         if self.job_id:
             return self.job_id
-        raw = f"{self.title_normalized}|{self.company.lower().strip()}|{self.source.value}"
+        url = urlsplit(self.source_url)
+        if url.scheme in {"http", "https"} and url.netloc:
+            query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
+                     if not k.lower().startswith("utm_") and k.lower() not in {"fbclid", "gclid"}]
+            canonical = urlunsplit((url.scheme, url.netloc.lower(), url.path,
+                                   urlencode(sorted(query)), ""))
+            raw = f"{self.source.value}|{canonical}"
+        else:
+            raw = (f"{self.title_normalized}|{self.company.lower().strip()}|"
+                   f"{self.location_normalized.lower().strip()}|{self.source.value}")
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
     def generate_id(self) -> None:
         """Set job_id based on content hash."""
-        raw = f"{self.title_normalized}|{self.company.lower().strip()}|{self.source.value}"
-        self.job_id = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        self.job_id = self.computed_job_id
 
     def to_dynamo_item(self) -> dict:
         """Convert to DynamoDB item format."""
@@ -146,8 +157,12 @@ class Job(BaseModel):
             item["salary_max"] = self.salary_max
         if self.posted_at:
             item["posted_at"] = self.posted_at.isoformat()
+        if self.expires_at:
+            item["expires_at"] = self.expires_at.isoformat()
         if self.requirements:
             item["requirements"] = self.requirements[:2000]
+        if self.search_blob:
+            item["search_blob"] = self.search_blob[:4000]  # Limit for DynamoDB item size
 
         return item
 
@@ -237,6 +252,7 @@ class JobMatch(BaseModel):
 
 def _escape_md(text: str) -> str:
     """Escape special characters for Telegram MarkdownV2."""
+    text = str(text or "").replace("\\", "\\\\")
     special_chars = r"_*[]()~`>#+-=|{}.!"
     for char in special_chars:
         text = text.replace(char, f"\\{char}")

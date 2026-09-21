@@ -14,15 +14,13 @@ Matching logic:
 
 from __future__ import annotations
 
-import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
 
 import boto3
 from botocore.exceptions import ClientError
 
 from src.common.logger import get_logger
-from src.common.models import Job, JobMatch, Subscription, _escape_md
+from src.common.models import Subscription, _escape_md
 from src.config import get_settings
 
 logger = get_logger(__name__)
@@ -71,58 +69,11 @@ class KeywordMatcher:
         3. Optional: location filter
         4. Optional: salary filter
         """
-        title = job.get("title_normalized", "").lower()
-        tags = [t.lower() for t in job.get("tags", [])]
-        description = job.get("description", "").lower()
-        requirements = job.get("requirements", "").lower()
-
-        # Keyword match (all parts of the keyword must be present, with synonym expansion)
-        keyword_parts = re.split(r"[,\s\-/|]+", keyword.lower())
-        keyword_parts = [p.strip() for p in keyword_parts if len(p.strip()) > 1]
-        if not keyword_parts:
-            keyword_parts = [keyword.lower().strip()]
-
-        is_match = True
-        for token in keyword_parts:
-            token_in_title = token in title
-            token_in_tags = any(token in tag for tag in tags)
-            token_in_desc = token in description
-            token_in_req = token in requirements
-
-            # Synonym mappings for intern/fresher
-            if token in ["intern", "thuc tap", "thực tập"]:
-                synonyms = ["intern", "thuc tap", "thực tập", "tts"]
-                token_in_title = token_in_title or any(s in title for s in synonyms)
-                token_in_tags = token_in_tags or any(any(s in tag for tag in tags) for s in synonyms)
-                token_in_desc = token_in_desc or any(s in description for s in synonyms)
-                token_in_req = token_in_req or any(s in requirements for s in synonyms)
-            elif token in ["fresher", "moi tot nghiep", "mới tốt nghiệp"]:
-                synonyms = ["fresher", "moi tot nghiep", "mới tốt nghiệp"]
-                token_in_title = token_in_title or any(s in title for s in synonyms)
-                token_in_tags = token_in_tags or any(any(s in tag for tag in tags) for s in synonyms)
-                token_in_desc = token_in_desc or any(s in description for s in synonyms)
-                token_in_req = token_in_req or any(s in requirements for s in synonyms)
-
-            if not (token_in_title or token_in_tags or token_in_desc or token_in_req):
-                is_match = False
-                break
-
-        if not is_match:
-            return False
-
-        # Location filter
-        if subscription.location_filter:
-            loc = job.get("location_normalized", "").lower()
-            if subscription.location_filter.lower() not in loc:
-                return False
-
-        # Salary filter
-        if subscription.salary_min_filter:
-            salary_max = job.get("salary_max")
-            if salary_max and salary_max < subscription.salary_min_filter:
-                return False
-
-        return True
+        from src.matcher.search import relevance, matches_filters
+        return bool(relevance(job, keyword)) and matches_filters(
+            job, subscription.location_filter, subscription.salary_min_filter,
+            max_age_days=self.settings.max_job_age_days,
+        )
 
     def get_new_jobs_since(
         self,
@@ -182,58 +133,26 @@ class KeywordMatcher:
 
         user_subs: dict[str, list[Subscription]] = {}
 
-        try:
-            response = table.scan(
-                FilterExpression="is_active = :active AND begins_with(sk, :sub_prefix)",
-                ExpressionAttributeValues={
-                    ":active": True,
-                    ":sub_prefix": "SUB#",
-                },
-            )
-
+        kwargs = {
+            "FilterExpression": "is_active = :active AND begins_with(sk, :sub_prefix)",
+            "ExpressionAttributeValues": {":active": True, ":sub_prefix": "SUB#"},
+        }
+        while True:
+            response = table.scan(**kwargs)
             for item in response.get("Items", []):
-                user_id = item["user_id"]
                 sub = Subscription(
-                    user_id=user_id,
+                    user_id=str(item["user_id"]),
                     keyword_raw=item.get("keyword_raw", ""),
                     keyword_normalized=item.get("keyword_normalized", ""),
                     location_filter=item.get("location_filter") or None,
                     salary_min_filter=item.get("salary_min_filter") or None,
-                    is_active=True,
                 )
-                if user_id not in user_subs:
-                    user_subs[user_id] = []
-                user_subs[user_id].append(sub)
-
-            # Handle pagination
-            while "LastEvaluatedKey" in response:
-                response = table.scan(
-                    FilterExpression="is_active = :active AND begins_with(sk, :sub_prefix)",
-                    ExpressionAttributeValues={
-                        ":active": True,
-                        ":sub_prefix": "SUB#",
-                    },
-                    ExclusiveStartKey=response["LastEvaluatedKey"],
-                )
-                for item in response.get("Items", []):
-                    user_id = item["user_id"]
-                    sub = Subscription(
-                        user_id=user_id,
-                        keyword_raw=item.get("keyword_raw", ""),
-                        keyword_normalized=item.get("keyword_normalized", ""),
-                    )
-                    if user_id not in user_subs:
-                        user_subs[user_id] = []
-                    user_subs[user_id].append(sub)
-
-            total_subs = sum(len(s) for s in user_subs.values())
-            logger.info(
-                f"Loaded {total_subs} active subscriptions for {len(user_subs)} users"
-            )
-
-        except ClientError as e:
-            logger.error(f"Failed to load subscriptions: {e}")
-
+                if sub.keyword_normalized.strip():
+                    user_subs.setdefault(sub.user_id, []).append(sub)
+            if not response.get("LastEvaluatedKey"):
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        logger.info("Loaded subscriptions for %s users", len(user_subs))
         return user_subs
 
 
@@ -270,7 +189,6 @@ def format_notification(
         location = _escape_md(job.get("location", ""))
         salary = _escape_md(job.get("salary_raw", "Thỏa thuận"))
         url = job.get("source_url", "")
-        source = job.get("source", "")
 
         entry = (
             f"*{i}\\. {title}*\n"

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import re
 from typing import Optional
-from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 

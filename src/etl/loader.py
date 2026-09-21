@@ -9,6 +9,7 @@ Loads processed Job objects to:
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -21,40 +22,28 @@ from src.config import get_settings
 
 logger = get_logger(__name__)
 
+SEARCH_FIELDS = (
+    "job_id",
+    "title",
+    "title_normalized",
+    "company",
+    "location",
+    "location_normalized",
+    "salary_raw",
+    "salary_min",
+    "salary_max",
+    "source",
+    "source_url",
+    "scraped_at",
+    "posted_at",
+    "expires_at",
+    "ttl",
+    "tags",
+    "search_blob",
+)
 
-def _clean_vn_text(text: str) -> str:
-    """Helper to lowercase, normalize to NFC, strip Vietnamese accents, and replace y with i."""
-    if not text:
-        return ""
-    import unicodedata
-    
-    # Standardize to NFC and lowercase
-    text = unicodedata.normalize("NFC", text.lower())
-    
-    # Map of accented characters to base letters
-    accent_map = {
-        'a': 'aàáảãạăằắẳẵặâầấẩẫậ',
-        'e': 'eèéẻẽẹêềếểễệ',
-        'i': 'iìíỉĩị',
-        'o': 'oòóỏõọôồốổỗộơờớởỡợ',
-        'u': 'uùúủũụưừứửữự',
-        'y': 'yỳýỷỹỵ',
-        'd': 'dđ',
-    }
-    
-    char_map = {}
-    for base, chars in accent_map.items():
-        for char in chars:
-            char_map[char] = base
-            
-    result = []
-    for char in text:
-        result.append(char_map.get(char, char))
-        
-    cleaned = "".join(result)
-    # Treat 'y' and 'i' as equivalent (e.g. kĩ vs kỹ, công nghệ thông tin vs công nghệ thông tyn)
-    cleaned = cleaned.replace("y", "i")
-    return cleaned
+
+# _clean_vn_text moved to src.common.text_utils.clean_vn_text
 
 
 class DynamoDBLoader:
@@ -91,6 +80,9 @@ class DynamoDBLoader:
             item["ttl"] = int(datetime.now(timezone.utc).timestamp()) + ttl_seconds
 
             self.table.put_item(Item=item)
+            self.__dict__.pop("_search_items", None)
+            self.__dict__.pop("_search_items_loaded_at", None)
+            self.__dict__.pop("_search_items_complete", None)
             return True
 
         except ClientError as e:
@@ -110,10 +102,13 @@ class DynamoDBLoader:
         """
         settings = get_settings()
         ttl_seconds = settings.max_job_age_days * 24 * 3600
+        self.__dict__.pop("_search_items", None)
+        self.__dict__.pop("_search_items_loaded_at", None)
+        self.__dict__.pop("_search_items_complete", None)
         loaded = 0
 
         try:
-            with self.table.batch_writer() as batch:
+            with self.table.batch_writer(overwrite_by_pkeys=["job_id"]) as batch:
                 for job in jobs:
                     try:
                         item = job.to_dynamo_item()
@@ -130,6 +125,7 @@ class DynamoDBLoader:
 
         except ClientError as e:
             logger.error(f"DynamoDB batch write failed: {e}")
+            raise
 
         return loaded
 
@@ -172,96 +168,59 @@ class DynamoDBLoader:
 
         return existing_ids
 
-    def search_jobs(self, keyword: str, limit: int = 20) -> list[dict]:
-        """Search jobs by keyword with smart Python-based token matching.
+    def get_search_items(self, deadline_at: float | None = None) -> list[dict]:
+        """Read scan pages with a short warm-container cache and deadline guard."""
+        settings = get_settings()
+        loaded_at = float(getattr(self, "_search_items_loaded_at", 0))
+        cached_complete = bool(getattr(self, "_search_items_complete", False))
+        cache_seconds = settings.search_snapshot_cache_seconds
+        if not cached_complete:
+            cache_seconds = min(60, cache_seconds)
+        if (
+            hasattr(self, "_search_items")
+            and time.monotonic() - loaded_at <= cache_seconds
+        ):
+            self._last_search_complete = cached_complete
+            return self._search_items
+        items = []
+        field_names = {f"#f{index}": field for index, field in enumerate(SEARCH_FIELDS)}
+        kwargs = {
+            "ProjectionExpression": ", ".join(field_names),
+            "ExpressionAttributeNames": field_names,
+        }
+        complete = True
+        while True:
+            if deadline_at is not None and time.monotonic() >= deadline_at:
+                complete = False
+                break
+            response = self.table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            if not response.get("LastEvaluatedKey"):
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        if not items and not complete:
+            raise TimeoutError("DynamoDB search deadline reached before the first scan page")
+        self._last_search_complete = complete
+        self._search_items = items
+        self._search_items_loaded_at = time.monotonic()
+        self._search_items_complete = complete
+        if not complete:
+            logger.warning(
+                "Search deadline reached; ranking a partial snapshot of %s jobs", len(items)
+            )
+        logger.info("Search snapshot loaded: %s jobs (complete=%s)", len(items), complete)
+        return items
 
-        For production, consider using DynamoDB with OpenSearch for full-text search.
-
-        Args:
-            keyword: Search keyword.
-            limit: Max results to return.
-
-        Returns:
-            List of matching job items.
-        """
-        try:
-            import re
-
-            # Scan the table to fetch all items for client-side search.
-            # Safe and fast for small-to-medium tables (under 10,000 items).
-            projection = "job_id, title, title_normalized, company, #loc, location_normalized, salary_raw, tags, #src, source_url, posted_at, scraped_at"
-            scan_kwargs = {
-                "ProjectionExpression": projection,
-                "ExpressionAttributeNames": {
-                    "#loc": "location",
-                    "#src": "source"
-                }
-            }
-            
-            response = self.table.scan(**scan_kwargs)
-            items = response.get("Items", [])
-            
-            while "LastEvaluatedKey" in response:
-                scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
-                response = self.table.scan(**scan_kwargs)
-                items.extend(response.get("Items", []))
-
-            # Clean and split keyword into search tokens
-            keyword_clean_vn = _clean_vn_text(keyword)
-            raw_tokens = re.split(r"[,\s\-/|]+", keyword_clean_vn)
-            search_tokens = [t.strip() for t in raw_tokens if len(t.strip()) > 1]
-            
-            # Fallback if no valid tokens extracted
-            if not search_tokens:
-                search_tokens = [keyword_clean_vn]
-
-            matched_items = []
-            for item in items:
-                title_norm = item.get("title_normalized", "").lower()
-                title_clean = _clean_vn_text(title_norm)
-                
-                tags = [t.lower() for t in item.get("tags", [])]
-                tags_clean = [_clean_vn_text(t) for t in tags]
-                
-                # We want to match all search tokens (AND behavior)
-                is_match = True
-                for token in search_tokens:
-                    token_in_title = token in title_clean
-                    token_in_tags = any(token in tag for tag in tags_clean)
-                    
-                    # Synonym mappings for intern/fresher
-                    if token in ["intern", "thuc tap", "tts"]:
-                        token_in_title = (
-                            token_in_title 
-                            or "intern" in title_clean 
-                            or "thuc tap" in title_clean 
-                            or "tts" in title_clean
-                        )
-                    if token in ["fresher", "moi tot nghiep"]:
-                        token_in_title = (
-                            token_in_title 
-                            or "fresher" in title_clean 
-                            or "moi tot nghiep" in title_clean
-                        )
-                        
-                    if not (token_in_title or token_in_tags):
-                        is_match = False
-                        break
-                        
-                if is_match:
-                    matched_items.append(item)
-
-            # Sort by posted_at descending (fallback to scraped_at, newest first)
-            matched_items.sort(key=lambda x: x.get("posted_at") or x.get("scraped_at", ""), reverse=True)
-
-            return matched_items[:limit]
-
-        except ClientError as e:
-            logger.error(f"DynamoDB scan for search failed: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Python-based smart search failed: {e}", exc_info=True)
-            return []
+    def search_jobs(self, keyword: str, limit: int | None = 20, *,
+                    location: str | None = None, salary_min: int | None = None,
+                    since: datetime | None = None,
+                    deadline_at: float | None = None) -> list[dict]:
+        from src.matcher.search import rank_jobs
+        # Storage failures must propagate; they are not an empty search result.
+        return rank_jobs(self.get_search_items(deadline_at=deadline_at), keyword,
+                         location=location,
+                         salary_min=salary_min, since=since, limit=limit,
+                         max_age_days=get_settings().max_job_age_days)
 
 
 

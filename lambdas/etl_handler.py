@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.common.logger import get_logger
 from src.common.models import RawJob
-from src.config import get_settings
 from src.etl.deduplicator import Deduplicator
 from src.etl.loader import DynamoDBLoader, S3Loader
 from src.etl.transformer import Transformer
@@ -36,7 +35,6 @@ def handler(event, context):
     Returns:
         Processing summary.
     """
-    settings = get_settings()
     start_time = datetime.now(timezone.utc)
 
     logger.info("Starting ETL processing")
@@ -50,6 +48,7 @@ def handler(event, context):
             raw_jobs.append(raw_job)
         except Exception as e:
             logger.warning(f"Failed to parse SQS record: {e}")
+            raise ValueError("Invalid SQS record; retain the batch for retry/DLQ") from e
 
     if not raw_jobs:
         logger.info("No valid raw jobs to process")
@@ -58,16 +57,20 @@ def handler(event, context):
     # Transform
     transformer = Transformer()
     jobs = transformer.transform_batch(raw_jobs)
+    if len(jobs) != len(raw_jobs):
+        raise RuntimeError("ETL transformation incomplete; retain batch for retry")
 
     # Deduplicate within batch
     deduplicator = Deduplicator()
-    jobs = deduplicator.deduplicate(jobs, cross_source=True)
+    jobs = deduplicator.deduplicate(jobs, cross_source=False)
 
     # Load to DynamoDB (insert new or overwrite existing jobs with fresh scraped_at)
     db_loader = DynamoDBLoader()
     loaded_count = 0
     if jobs:
         loaded_count = db_loader.load_batch(jobs)
+        if loaded_count != len(jobs):
+            raise RuntimeError("ETL write incomplete; retain batch for retry")
 
     # Save processed data to S3
     s3_loader = S3Loader()

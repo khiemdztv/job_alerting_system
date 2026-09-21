@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import re
 from typing import Optional
-from urllib.parse import quote, urljoin
+from urllib.parse import urljoin
+
+from src.common.text_utils import slugify_vn
 
 from bs4 import BeautifulSoup, Tag
 
@@ -43,11 +45,11 @@ class CareerVietScraper(BaseScraper):
     def _build_search_url(self, keyword: str, page: int) -> str:
         """Build CareerViet search URL.
 
-        URL format: /viec-lam/{keyword}-k-vi.html?page={n}
-        Keyword is URL-encoded with hyphens replacing spaces.
+        URL format: /viec-lam/{keyword-slug}-k-vi.html?page={n}
+        Keyword must be slugified (no diacritics, hyphens for spaces).
+        e.g. 'Kế Toán' → 'ke-toan' → /viec-lam/ke-toan-k-vi.html
         """
-        # CareerViet uses URL-encoded keyword in the path
-        keyword_slug = quote(keyword.strip(), safe="")
+        keyword_slug = slugify_vn(keyword)
         url = f"{BASE_URL}/viec-lam/{keyword_slug}-k-vi.html"
         if page > 1:
             url += f"?page={page}"
@@ -156,11 +158,10 @@ class CareerVietScraper(BaseScraper):
                 else:
                     location = loc_el.get_text(strip=True)
 
-            # Deadline / Posted date
-            posted_at_raw = ""
-            time_el = raw_data.find("time")
-            if time_el:
-                posted_at_raw = time_el.get_text(strip=True)
+            # NOTE: The <time> element in CareerViet is the APPLICATION DEADLINE,
+            # not the posting date. Do NOT save it as posted_at_raw — it would
+            # produce future dates that break recency sorting/filtering.
+            # The system will use scraped_at as fallback, which is more accurate.
 
             return RawJob(
                 title=title,
@@ -169,7 +170,7 @@ class CareerVietScraper(BaseScraper):
                 salary_raw=salary,
                 source=JobSource.CAREERVIET,
                 source_url=source_url,
-                posted_at_raw=posted_at_raw,
+                posted_at_raw="",  # intentionally blank — see NOTE above
             )
 
         except Exception as e:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -17,6 +18,7 @@ from src.bot.handler import TelegramBot
 from src.common.logger import get_logger
 
 logger = get_logger(__name__)
+bot = TelegramBot()
 
 
 def handler(event, context):
@@ -37,8 +39,11 @@ def handler(event, context):
 
         logger.info("Received Telegram webhook event")
 
-        bot = TelegramBot()
-        result = bot.handle_webhook(body)
+        deadline_at = None
+        if context is not None:
+            remaining = context.get_remaining_time_in_millis() / 1000
+            deadline_at = time.monotonic() + max(1, remaining - 12)
+        bot.handle_webhook(body, deadline_at=deadline_at)
 
         return {
             "statusCode": 200,

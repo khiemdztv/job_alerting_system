@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 
 from src.common.logger import get_logger
 from src.common.models import JobSource, RawJob
+from src.matcher.search import relevance
 from src.scrapers.base_scraper import BaseScraper
 
 logger = get_logger(__name__)
@@ -70,9 +71,7 @@ class YBoxScraper(BaseScraper):
             edges = ads_data.get("Ads", {}).get("edges", [])
             logger.info(f"Ybox search page returned {len(edges)} ads. Filtering for keyword '{keyword}'...")
 
-            # Clean keyword for comparison
-            kw_clean = keyword.lower().strip()
-
+            # Token-based matching with synonym expansion (not full-string match)
             for edge in edges:
                 post = edge.get("post")
                 if not post:
@@ -80,9 +79,7 @@ class YBoxScraper(BaseScraper):
 
                 title = post.get("title", "")
                 summary = post.get("summary", "")
-
-                # Filter locally: check if keyword is in title or description/summary
-                if (kw_clean in title.lower()) or (kw_clean in summary.lower()):
+                if relevance({"title": title, "description": summary}, keyword):
                     job = self.parse_job(post)
                     if job:
                         all_jobs.append(job)

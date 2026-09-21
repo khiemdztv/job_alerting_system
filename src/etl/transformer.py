@@ -19,6 +19,7 @@ from typing import Optional
 
 from src.common.logger import get_logger
 from src.common.models import Job, JobType, RawJob
+from src.common.text_utils import clean_vn_text
 
 logger = get_logger(__name__)
 
@@ -132,6 +133,15 @@ class Transformer:
             job.salary_min = salary_min
             job.salary_max = salary_max
 
+            # Precompute search blob for full-text matching
+            job.search_blob = clean_vn_text(" ".join(filter(None, [
+                raw_job.title,
+                raw_job.company,
+                raw_job.description,
+                raw_job.requirements,
+                " ".join(job.tags),
+            ])))
+
             # Generate deterministic ID
             job.generate_id()
 
@@ -214,7 +224,8 @@ class Transformer:
             multiplier = 25_000  # Approximate VND/USD
 
         # Extract numbers
-        numbers = re.findall(r"[\d.,]+", salary)
+        # Punctuation in source descriptions (e.g. "Hongkong...") is not a number.
+        numbers = re.findall(r"\d[\d.,]*", salary)
         numbers = [float(n.replace(",", "").replace(".", "")) for n in numbers if n]
 
         if not numbers:
@@ -268,7 +279,19 @@ class Transformer:
         if base_date is None:
             base_date = datetime.now(timezone.utc)
 
-        date_str = date_str.lower().strip()
+        date_str = date_str.strip()
+
+        # Try epoch milliseconds (e.g., Chợ Tốt's list_time: "1720300000000")
+        if date_str.isdigit() and len(date_str) >= 10:
+            try:
+                ts = int(date_str)
+                if ts > 1_000_000_000_000:  # epoch milliseconds
+                    ts = ts / 1000
+                return datetime.fromtimestamp(ts, tz=timezone.utc)
+            except (ValueError, OSError):
+                pass
+
+        date_str = date_str.lower()
 
         # Try ISO format
         try:

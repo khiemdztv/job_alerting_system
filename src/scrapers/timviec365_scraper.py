@@ -6,7 +6,7 @@ Returns static HTML — easy to parse with BeautifulSoup.
 
 Verified structure (from live HTML):
 - Each job is an <h2> heading followed by company, location, salary info
-- URL format: https://timviec365.vn/viec-lam?key={keyword}&page={n}
+- URL format: https://timviec365.vn/tim-kiem?keyword={keyword}&page={n}
 - Job links: <a href="/job-slug-p{id}.html">
 - Company links: <a href="/company-slug-co{id}">
 """
@@ -31,7 +31,7 @@ BASE_URL = "https://timviec365.vn"
 class TimViec365Scraper(BaseScraper):
     """Scraper for TimViec365.vn (static HTML, multi-industry job board)."""
 
-    SEARCH_URL = f"{BASE_URL}/viec-lam"
+    SEARCH_URL = f"{BASE_URL}/tim-kiem"
 
     def __init__(self):
         super().__init__(source=JobSource.TIMVIEC365)
@@ -50,7 +50,7 @@ class TimViec365Scraper(BaseScraper):
         all_jobs: list[RawJob] = []
 
         for page in range(1, max_pages + 1):
-            params = {"key": keyword, "page": page}
+            params = {"keyword": keyword, "page": page}
 
             try:
                 response = self._get(self.SEARCH_URL, params=params)
@@ -65,13 +65,17 @@ class TimViec365Scraper(BaseScraper):
                     break
 
                 # Deduplicate links (same job appears twice in the HTML)
-                seen_hrefs = set()
-                unique_links = []
+                best_links = {}
                 for link in job_links:
                     href = link.get("href", "")
-                    if href and href not in seen_hrefs:
-                        seen_hrefs.add(href)
-                        unique_links.append(link)
+                    text = link.get("title") or link.get_text(" ", strip=True)
+                    # Date/logo links often precede the actual title for the same URL.
+                    score = len(text) + (
+                        1000 if link.find(["h2", "h3"]) or link.find_parent(["h2", "h3"]) else 0
+                    )
+                    if href and (href not in best_links or score > best_links[href][0]):
+                        best_links[href] = (score, link)
+                unique_links = [link for _, link in best_links.values()]
 
                 for link in unique_links:
                     job = self.parse_job(link)
@@ -101,8 +105,10 @@ class TimViec365Scraper(BaseScraper):
         """
         try:
             # Title & Link
-            title = raw_data.get_text(strip=True)
+            title = raw_data.get("title") or raw_data.get_text(" ", strip=True)
             if not title or len(title) < 3:
+                return None
+            if re.fullmatch(r"\d+\s*(?:ngày|giờ|phút|tuần|tháng)(?:\s*trước)?", title, re.I):
                 return None
 
             href = raw_data.get("href", "")
@@ -134,11 +140,26 @@ class TimViec365Scraper(BaseScraper):
 
                 # Location patterns (Vietnamese city names)
                 location_patterns = [
-                    "Hà Nội", "Hồ Chí Minh", "Đà Nẵng", "Hải Phòng",
-                    "Cần Thơ", "Bình Dương", "Đồng Nai", "Bắc Ninh",
-                    "Hưng Yên", "Khánh Hòa", "Lâm Đồng", "Nghệ An",
-                    "Thanh Hóa", "Quảng Ninh", "Thái Nguyên", "Ninh Bình",
-                    "Vĩnh Long", "Tuyên Quang", "Tây Ninh", "Phú Thọ",
+                    "Hà Nội",
+                    "Hồ Chí Minh",
+                    "Đà Nẵng",
+                    "Hải Phòng",
+                    "Cần Thơ",
+                    "Bình Dương",
+                    "Đồng Nai",
+                    "Bắc Ninh",
+                    "Hưng Yên",
+                    "Khánh Hòa",
+                    "Lâm Đồng",
+                    "Nghệ An",
+                    "Thanh Hóa",
+                    "Quảng Ninh",
+                    "Thái Nguyên",
+                    "Ninh Bình",
+                    "Vĩnh Long",
+                    "Tuyên Quang",
+                    "Tây Ninh",
+                    "Phú Thọ",
                 ]
                 for loc in location_patterns:
                     if loc in card_text:

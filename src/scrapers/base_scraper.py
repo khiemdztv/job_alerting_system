@@ -7,10 +7,11 @@ ensuring a consistent interface and shared functionality.
 
 from __future__ import annotations
 
+import random
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -19,6 +20,18 @@ from src.common.models import JobSource, RawJob
 from src.config import get_settings
 
 logger = get_logger(__name__)
+
+# Pool of realistic User-Agent strings for anti-blocking rotation
+_USER_AGENT_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:126.0) Gecko/20100101 Firefox/126.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+]
 
 
 class BaseScraper(ABC):
@@ -36,16 +49,22 @@ class BaseScraper(ABC):
         self.settings = get_settings()
         self.session = self._create_session()
         self._last_request_time: float = 0.0
+        self.deadline_at: float | None = None
+        self.last_error: str = ""
 
     def _create_session(self) -> requests.Session:
-        """Create a requests session with proper headers and retry config."""
+        """Create a requests session with randomized headers and retry config."""
         session = requests.Session()
-        session.headers.update(self.settings.scraper_headers)
+
+        # Randomize User-Agent per session to avoid fingerprinting
+        headers = dict(self.settings.scraper_headers)
+        headers["User-Agent"] = random.choice(_USER_AGENT_POOL)
+        session.headers.update(headers)
 
         # Retry adapter
         adapter = requests.adapters.HTTPAdapter(
             max_retries=requests.adapters.Retry(
-                total=3,
+                total=1,
                 backoff_factor=1.0,
                 status_forcelist=[429, 500, 502, 503, 504],
             )
@@ -56,10 +75,16 @@ class BaseScraper(ABC):
         return session
 
     def _rate_limit(self) -> None:
-        """Enforce delay between requests to avoid being blocked."""
+        """Enforce delay between requests with jitter to avoid fingerprinting."""
+        if self.deadline_at is not None and time.monotonic() + 20 >= self.deadline_at:
+            raise TimeoutError("Scrape budget exhausted")
         elapsed = time.time() - self._last_request_time
-        if elapsed < self.settings.scrape_delay_seconds:
-            sleep_time = self.settings.scrape_delay_seconds - elapsed
+        base_delay = self.settings.scrape_delay_seconds
+        # Add random jitter (0.5-1.5s) to avoid consistent timing patterns
+        jitter = random.uniform(0.5, 1.5)
+        target_delay = base_delay + jitter
+        if elapsed < target_delay:
+            sleep_time = target_delay - elapsed
             time.sleep(sleep_time)
         self._last_request_time = time.time()
 
@@ -78,13 +103,24 @@ class BaseScraper(ABC):
             requests.RequestException: On network errors after retries.
         """
         self._rate_limit()
+
+        # Add Referer header (site homepage) to appear more browser-like
+        parsed = urlparse(url)
+        referer = f"{parsed.scheme}://{parsed.netloc}/"
+        headers = kwargs.pop("headers", {})
+        headers.setdefault("Referer", referer)
+
         logger.info(
             f"Scraping {url}",
             extra={"source": self.source.value},
         )
-        response = self.session.get(url, params=params, timeout=15, **kwargs)
-        response.raise_for_status()
-        return response
+        try:
+            response = self.session.get(url, params=params, timeout=5, headers=headers, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            self.last_error = type(exc).__name__
+            raise
 
     def _post(self, url: str, json_data: Optional[dict] = None, **kwargs) -> requests.Response:
         """Make a rate-limited POST request.
@@ -99,12 +135,16 @@ class BaseScraper(ABC):
         """
         self._rate_limit()
         logger.info(
-            f"POST {url}",
+            f"POST {urlparse(url).netloc}",
             extra={"source": self.source.value},
         )
-        response = self.session.post(url, json=json_data, timeout=15, **kwargs)
-        response.raise_for_status()
-        return response
+        try:
+            response = self.session.post(url, json=json_data, timeout=5, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            self.last_error = type(exc).__name__
+            raise
 
     @abstractmethod
     def scrape(self, keyword: str, max_pages: Optional[int] = None) -> list[RawJob]:
@@ -142,6 +182,7 @@ class BaseScraper(ABC):
             List of RawJob objects (empty on error).
         """
         start_time = time.time()
+        self.last_error = ""
         try:
             jobs = self.scrape(keyword, max_pages)
             duration_ms = int((time.time() - start_time) * 1000)
@@ -155,6 +196,7 @@ class BaseScraper(ABC):
             )
             return jobs
         except Exception as e:
+            self.last_error = type(e).__name__
             duration_ms = int((time.time() - start_time) * 1000)
             logger.error(
                 f"Failed to scrape {self.source.value} for '{keyword}': {e}",
