@@ -24,14 +24,18 @@ class YouSearchError(RuntimeError):
     """A safe, non-secret-bearing You.com API failure."""
 
 
-BOOST_DOMAINS = [
-    "linkedin.com",
+VIETNAM_JOB_DOMAINS = [
     "topcv.vn",
     "vietnamworks.com",
     "careerviet.vn",
-    "careerlink.vn",
-    "vieclam24h.vn",
     "jobsgo.vn",
+    "vieclam24h.vn",
+    "topdev.vn",
+]
+
+OTHER_JOB_DOMAINS = [
+    "linkedin.com",
+    "careerlink.vn",
     "glints.com",
     "itviec.com",
     "ybox.vn",
@@ -40,6 +44,10 @@ BOOST_DOMAINS = [
     "jobs.lever.co",
     "job-boards.greenhouse.io",
 ]
+
+# You.com treats this as a ranking boost, so company career pages can still
+# appear while the largest Vietnamese boards are preferred first.
+BOOST_DOMAINS = [*VIETNAM_JOB_DOMAINS, *OTHER_JOB_DOMAINS]
 
 JOB_SIGNALS = (
     " job ",
@@ -165,6 +173,7 @@ def _domain_label(url: str) -> str:
         "careerlink": "CareerLink",
         "vieclam24h": "ViecLam24h",
         "jobsgo": "JobsGO",
+        "topdev": "TopDev",
         "itviec": "ITviec",
         "smartrecruiters": "SmartRecruiters",
         "greenhouse": "Greenhouse",
@@ -241,12 +250,19 @@ def _location_from_text(text: str, requested: str | None, url: str = "") -> str:
 def _looks_like_job(title: str, description: str, url: str) -> bool:
     title_and_url = f" {clean_vn_text(title)} {clean_vn_text(url)} "
     text = f" {title_and_url} {clean_vn_text(description)} "
+    clean_title = clean_vn_text(title).strip()
     path = urlsplit(url).path.lower()
     if any(signal in title_and_url for signal in NON_JOB_SIGNALS):
         return False
     if any(part in path for part in NON_JOB_PATHS):
         return False
-    if re.search(r"^\s*[\d,.+]+\s+.*\b(jobs?|viec lam)\b", clean_vn_text(title)):
+    if re.search(r"^\s*[\d,.+]+\s+.*\b(jobs?|viec lam)\b", clean_title):
+        return False
+    if (
+        (clean_title.startswith("find ") and " job" in clean_title)
+        or re.search(r"\bjobs? in\b", clean_title)
+        or re.search(r"\(\d+\)$", clean_title)
+    ):
         return False
     return any(part in path for part in JOB_PATH_SIGNALS) or any(
         signal in text for signal in JOB_SIGNALS

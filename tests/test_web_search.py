@@ -3,7 +3,11 @@ from unittest.mock import Mock
 import pytest
 
 from src.config import Settings
-from src.web_search.you_search import YouSearchClient, YouSearchError
+from src.web_search.you_search import (
+    VIETNAM_JOB_DOMAINS,
+    YouSearchClient,
+    YouSearchError,
+)
 
 
 def make_response(status_code=200, body=None):
@@ -31,6 +35,11 @@ def test_you_search_returns_only_relevant_job_urls(monkeypatch):
                         "title": "Data Analyst Intern | Acme Vietnam",
                         "url": "https://acme.example/careers/data-analyst?utm_source=duplicate",
                         "description": "Apply for this intern position in Ho Chi Minh.",
+                    },
+                    {
+                        "title": "Find IT Jobs (1043)",
+                        "url": "https://careerviet.vn/jobs/data-page.html",
+                        "description": "Search results include data analyst intern jobs in HCM.",
                     },
                 ],
                 "news": [],
@@ -69,3 +78,14 @@ def test_you_search_maps_credit_error_without_response_body(monkeypatch):
 
     with pytest.raises(YouSearchError, match="hết credit"):
         client.search("oracle intern")
+
+
+def test_major_vietnam_job_boards_are_prioritized():
+    assert set(VIETNAM_JOB_DOMAINS) == {
+        "topcv.vn",
+        "vietnamworks.com",
+        "careerviet.vn",
+        "jobsgo.vn",
+        "vieclam24h.vn",
+        "topdev.vn",
+    }

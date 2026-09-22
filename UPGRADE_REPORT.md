@@ -9,6 +9,8 @@
   hướng nghiệp, hồ sơ cá nhân, trang danh sách chung và URL trùng.
 - Tìm trong một tháng gần nhất trước; chỉ mở rộng sang các nền tảng tuyển dụng trong một năm khi
   còn dưới ba kết quả đã xác minh.
+- Ưu tiên sáu nền tảng lớn tại Việt Nam: TopCV, VietnamWorks, CareerViet, JobsGO, Việc Làm 24h
+  và TopDev. Fallback chỉ tìm trong nhóm domain tuyển dụng tin cậy để giảm bài viết và kết quả rác.
 - Key được đọc từ AWS Secrets Manager qua `VIECLAMBOT_YOU_API_KEY_SECRET_ARN`, không nằm trong
   source hoặc file môi trường đã commit. `scripts/configure_you_search.py` cấp riêng quyền đọc
   secret cho webhook Lambda.
