@@ -4,7 +4,6 @@ import pytest
 
 from src.config import Settings
 from src.web_search.you_search import (
-    BOOST_DOMAINS,
     VIETNAM_JOB_DOMAINS,
     YouSearchClient,
     YouSearchError,
@@ -57,30 +56,21 @@ def test_you_search_returns_only_relevant_job_urls(monkeypatch):
         you_search_count=20,
     )
 
-    jobs = YouSearchClient(settings).search(
-        "data analyst intern", location="HCM", limit=10
-    )
+    jobs = YouSearchClient(settings).search("data analyst intern", location="HCM", limit=10)
 
     assert len(jobs) == 1
     assert jobs[0]["company"] == "Acme Vietnam"
     assert jobs[0]["location"] == "Ho Chi Minh"
     assert jobs[0]["source_url"] == "https://acme.example/careers/data-analyst"
     assert jobs[0]["is_web_result"] is True
-    assert post.call_count == 2
-    preferred_request, fallback_request = post.call_args_list
-    assert preferred_request.kwargs["headers"] == {
-        "X-API-Key": "secret-test-key"
-    }
+    assert post.call_count == 1
+    preferred_request = post.call_args_list[0]
+    assert preferred_request.kwargs["headers"] == {"X-API-Key": "secret-test-key"}
     assert preferred_request.kwargs["json"]["country"] == "VN"
     assert "data analyst" in preferred_request.kwargs["json"]["query"]
     assert preferred_request.kwargs["json"]["freshness"] == "week"
     assert preferred_request.kwargs["json"]["include_domains"] == VIETNAM_JOB_DOMAINS
-    assert fallback_request.kwargs["json"]["freshness"] == "week"
-    assert fallback_request.kwargs["json"]["include_domains"] == BOOST_DOMAINS
-    assert all(
-        call.kwargs["json"].get("freshness") != "year"
-        for call in post.call_args_list
-    )
+    assert all(call.kwargs["json"].get("freshness") != "year" for call in post.call_args_list)
 
 
 def test_you_search_maps_credit_error_without_response_body(monkeypatch):
@@ -110,6 +100,29 @@ def test_query_uses_exact_role_variants_and_local_location():
 
     assert '"software intern" OR "software internship"' in query
     assert '"Ho Chi Minh" OR HCM OR Saigon' in query
+
+
+def test_ai_engineer_intern_search_accepts_related_ai_internship(monkeypatch):
+    response = make_response(
+        body={
+            "results": {
+                "web": [
+                    {
+                        "title": "AI Intern - IMT Solutions",
+                        "url": "https://jobsgo.vn/viec-lam/ai-intern-123.html",
+                        "description": "Current internship in Ho Chi Minh City",
+                        "page_age": "2026-09-21T00:00:00Z",
+                    }
+                ]
+            }
+        }
+    )
+    monkeypatch.setattr("src.web_search.you_search.requests.post", Mock(return_value=response))
+    client = YouSearchClient(Settings(you_api_key="secret-test-key"))
+
+    jobs = client.search("ai engineer intern", location="HCM", limit=10)
+
+    assert [job["title"] for job in jobs] == ["AI Intern - IMT Solutions"]
 
 
 def test_job_count_pages_are_not_treated_as_individual_jobs():

@@ -33,23 +33,6 @@ VIETNAM_JOB_DOMAINS = [
     "topdev.vn",
 ]
 
-OTHER_JOB_DOMAINS = [
-    "linkedin.com",
-    "careerlink.vn",
-    "glints.com",
-    "itviec.com",
-    "ybox.vn",
-    "indeed.com",
-    "jobs.smartrecruiters.com",
-    "jobs.lever.co",
-    "job-boards.greenhouse.io",
-]
-
-# The first request is restricted to the six large Vietnamese job boards.
-# This broader list is used only for a second recent-results request when the
-# first request is sparse.
-BOOST_DOMAINS = [*VIETNAM_JOB_DOMAINS, *OTHER_JOB_DOMAINS]
-
 JOB_SIGNALS = (
     " job ",
     " jobs ",
@@ -163,6 +146,9 @@ def _canonical_url(value: str) -> str:
             "search_id",
             "trk",
             "trackingid",
+            "ref_component",
+            "src",
+            "medium",
         }
     ]
     return urlunsplit(
@@ -244,11 +230,7 @@ def _location_from_text(text: str, requested: str | None, url: str = "") -> str:
         # because the city appeared in the search query. A Vietnam marker or
         # local domain is enough when the provider snippet omits the city.
         host = urlsplit(url).netloc.lower()
-        if (
-            " vietnam " in cleaned
-            or " viet nam " in cleaned
-            or host.endswith(".vn")
-        ):
+        if " vietnam " in cleaned or " viet nam " in cleaned or host.endswith(".vn"):
             return requested
         return ""
     if " vietnam " in cleaned or " viet nam " in cleaned:
@@ -289,6 +271,9 @@ def _query_for_web(query: str, location: str | None) -> str:
         variants.append(re.sub(r"\bintern\b", "internship", role, flags=re.I))
     elif re.search(r"\binternship\b", role, flags=re.I):
         variants.append(re.sub(r"\binternship\b", "intern", role, flags=re.I))
+    cleaned_role = clean_vn_text(role)
+    if "intern" in cleaned_role and re.search(r"(?<!\w)ai(?!\w)", cleaned_role):
+        variants.extend(["ai intern", "machine learning intern", "computer vision intern"])
     role_expression = " OR ".join(f'"{item}"' for item in dict.fromkeys(variants))
 
     place = normalize_location(location) if location else "vietnam"
@@ -339,24 +324,6 @@ class YouSearchClient:
             deadline_at=deadline_at,
         )
         jobs = self._normalize(candidates, query, location, limit)
-        # Keep the same freshness window when broadening. This prevents an
-        # empty first request from filling the result list with old postings.
-        if (
-            len(jobs) < min(3, limit)
-            and (deadline_at is None or time.monotonic() < deadline_at - 2.5)
-        ):
-            fallback_payload = {
-                **preferred_payload,
-                "include_domains": BOOST_DOMAINS,
-            }
-            candidates.extend(
-                self._request(
-                    fallback_payload,
-                    self.settings.you_search_freshness,
-                    deadline_at=deadline_at,
-                )
-            )
-            jobs = self._normalize(candidates, query, location, limit)
         logger.info(
             "You.com search normalized %s/%s job-like results",
             len(jobs),
@@ -399,17 +366,13 @@ class YouSearchClient:
                 403: "API key chưa có quyền Web Search",
                 429: "You.com đang giới hạn tần suất tìm kiếm",
             }
-            raise YouSearchError(
-                messages.get(response.status_code, "You.com tạm thời có lỗi")
-            )
+            raise YouSearchError(messages.get(response.status_code, "You.com tạm thời có lỗi"))
         try:
             body = response.json()
         except ValueError as exc:
             raise YouSearchError("You.com trả về dữ liệu không hợp lệ") from exc
         result_groups = body.get("results") or {}
-        return list(result_groups.get("web") or []) + list(
-            result_groups.get("news") or []
-        )
+        return list(result_groups.get("web") or []) + list(result_groups.get("news") or [])
 
     def _normalize(
         self,
@@ -436,9 +399,7 @@ class YouSearchClient:
                 "job_id": "web:" + identity({"source_url": url}),
                 "title": title,
                 "company": _company_from_title(title, domain),
-                "location": _location_from_text(
-                    f"{title} {description}", location, url
-                ),
+                "location": _location_from_text(f"{title} {description}", location, url),
                 "salary_raw": "",
                 "description": description[:2000],
                 "search_blob": clean_vn_text(f"{title} {description}"),
@@ -451,14 +412,18 @@ class YouSearchClient:
             seen_urls.add(url)
             jobs.append(job)
 
-        ranked = rank_jobs(jobs, query, location=location, limit=None)
+        queries = [query]
+        cleaned_query = clean_vn_text(query)
+        if "intern" in cleaned_query and re.search(r"(?<!\w)ai(?!\w)", cleaned_query):
+            queries.extend(["ai intern", "machine learning intern", "computer vision intern"])
         deduplicated, seen = [], set()
-        for job in ranked:
-            key = identity(job)
-            if key in seen:
-                continue
-            seen.add(key)
-            deduplicated.append(job)
-            if len(deduplicated) >= limit:
-                break
+        for rank_query in queries:
+            for job in rank_jobs(jobs, rank_query, location=location, limit=None):
+                key = identity(job)
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduplicated.append(job)
+                if len(deduplicated) >= limit:
+                    return deduplicated
         return deduplicated

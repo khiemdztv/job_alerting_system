@@ -29,6 +29,9 @@ class JobSource(str, Enum):
     TIMVIEC365 = "timviec365"
     YBOX = "ybox"
     CHOTOT = "chotot"
+    JOBSGO = "jobsgo"
+    TOPDEV = "topdev"
+    VIETNAMWORKS = "vietnamworks"
 
 
 class JobType(str, Enum):

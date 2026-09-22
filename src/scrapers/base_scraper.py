@@ -115,7 +115,10 @@ class BaseScraper(ABC):
             extra={"source": self.source.value},
         )
         try:
-            response = self.session.get(url, params=params, timeout=5, headers=headers, **kwargs)
+            timeout = kwargs.pop("timeout", 5)
+            response = self.session.get(
+                url, params=params, timeout=timeout, headers=headers, **kwargs
+            )
             response.raise_for_status()
             return response
         except requests.RequestException as exc:

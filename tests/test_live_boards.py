@@ -37,24 +37,24 @@ def test_live_boards_find_active_related_ai_internships(monkeypatch):
     ]
     careerviet = Mock()
     careerviet.source = JobSource.CAREERVIET
-    careerviet.scrape.side_effect = [
-        [],
-        [
-            raw(
-                "Project cum AI Intern",
-                "CareerViet",
-                "Hồ Chí Minh",
-                JobSource.CAREERVIET,
-                "https://careerviet.vn/vi/tim-viec-lam/project-ai.1.html",
-            )
-        ],
+    careerviet.scrape.return_value = [
+        raw(
+            "Project cum AI Intern",
+            "CareerViet",
+            "Hồ Chí Minh",
+            JobSource.CAREERVIET,
+            "https://careerviet.vn/vi/tim-viec-lam/project-ai.1.html",
+        )
     ]
-    monkeypatch.setattr(
-        "src.web_search.live_boards.ViecLam24hScraper", Mock(return_value=vieclam)
-    )
+    monkeypatch.setattr("src.web_search.live_boards.ViecLam24hScraper", Mock(return_value=vieclam))
     monkeypatch.setattr(
         "src.web_search.live_boards.CareerVietScraper", Mock(return_value=careerviet)
     )
+    for name in ("JobsGoScraper", "TopDevScraper", "VietnamWorksScraper"):
+        scraper = Mock()
+        scraper.source = JobSource.JOBSGO
+        scraper.scrape.return_value = []
+        monkeypatch.setattr(f"src.web_search.live_boards.{name}", Mock(return_value=scraper))
 
     jobs = search_live_job_boards("ai engineer intern", location="HCM", limit=10)
 
