@@ -8,6 +8,8 @@ from src.web_search.you_search import (
     VIETNAM_JOB_DOMAINS,
     YouSearchClient,
     YouSearchError,
+    _looks_like_job,
+    _query_for_web,
 )
 
 
@@ -101,3 +103,18 @@ def test_major_vietnam_job_boards_are_prioritized():
         "vieclam24h.vn",
         "topdev.vn",
     }
+
+
+def test_query_uses_exact_role_variants_and_local_location():
+    query = _query_for_web("software intern", "HCM")
+
+    assert '"software intern" OR "software internship"' in query
+    assert '"Ho Chi Minh" OR HCM OR Saigon' in query
+
+
+def test_job_count_pages_are_not_treated_as_individual_jobs():
+    assert not _looks_like_job(
+        "Tuyển dụng 118 việc làm data analyst internship program",
+        "Danh sách việc làm mới nhất",
+        "https://careerviet.vn/viec-lam/data-analyst-k-vi.html",
+    )

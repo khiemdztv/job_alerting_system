@@ -257,7 +257,10 @@ def _looks_like_job(title: str, description: str, url: str) -> bool:
         return False
     if any(part in path for part in NON_JOB_PATHS):
         return False
-    if re.search(r"^\s*[\d,.+]+\s+.*\b(jobs?|viec lam)\b", clean_title):
+    if re.search(
+        r"^\s*(?:tuyen dung\s+)?[\d,.+]+\s+.*\b(jobs?|viec lam)\b",
+        clean_title,
+    ):
         return False
     if (
         (clean_title.startswith("find ") and " job" in clean_title)
@@ -271,10 +274,24 @@ def _looks_like_job(title: str, description: str, url: str) -> bool:
 
 
 def _query_for_web(query: str, location: str | None) -> str:
+    role = re.sub(r'["()]', " ", query)
+    role = re.sub(r"\s+", " ", role).strip()
+    variants = [role]
+    if re.search(r"\bintern\b", role, flags=re.I):
+        variants.append(re.sub(r"\bintern\b", "internship", role, flags=re.I))
+    elif re.search(r"\binternship\b", role, flags=re.I):
+        variants.append(re.sub(r"\binternship\b", "intern", role, flags=re.I))
+    role_expression = " OR ".join(f'"{item}"' for item in dict.fromkeys(variants))
+
     place = normalize_location(location) if location else "vietnam"
-    # Natural queries produced materially broader, more local results than
-    # deeply nested Boolean expressions in live You.com testing.
-    return f"{query} {place} Vietnam hiring apply"[:700]
+    if place == "ho chi minh":
+        location_expression = '"Ho Chi Minh" OR HCM OR Saigon'
+    else:
+        location_expression = f'"{place}" OR Vietnam'
+    return (
+        f"({role_expression}) ({location_expression}) "
+        '(job OR hiring OR apply OR recruitment OR "tuyen dung" OR "viec lam")'
+    )[:700]
 
 
 class YouSearchClient:
