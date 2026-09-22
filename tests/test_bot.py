@@ -165,6 +165,7 @@ def test_normal_search_puts_recent_web_results_before_database(
 
     assert save.call_args.args[1] == [web_job, database_job]
     assert "web mới trước" in save.call_args.args[2]
+    assert "posted_since" in bot.db_loader.search_jobs.call_args.kwargs
     more.assert_called_once_with("123", 10)
 
 

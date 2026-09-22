@@ -64,6 +64,21 @@ def test_recency_does_not_hide_older_active_jobs(make_job):
     assert rank_jobs([newer, older, expired], "data engineer") == [newer, older]
 
 
+def test_interactive_recency_requires_a_real_recent_posting_date(make_job):
+    now = datetime.now(timezone.utc)
+    recent = make_job(company="Recent", posted_at=(now - timedelta(days=2)).isoformat())
+    old = make_job(company="Old", posted_at=(now - timedelta(days=20)).isoformat())
+    missing = make_job(company="Missing")
+
+    results = rank_jobs(
+        [old, missing, recent],
+        "data engineer",
+        posted_since=now - timedelta(days=7),
+    )
+
+    assert results == [recent]
+
+
 def test_ranking_before_source_and_duplicates(make_job):
     exact = make_job(company="Exact")
     weaker = make_job(

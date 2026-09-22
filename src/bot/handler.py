@@ -759,6 +759,8 @@ class TelegramBot:
             )
 
     def _handle_search(self, chat_id: str, keyword: str) -> None:
+        from datetime import datetime, timedelta, timezone
+
         from src.matcher.search import concepts, parse_search
         query, location = parse_search(keyword)
         if not concepts(query):
@@ -785,6 +787,8 @@ class TelegramBot:
                 query,
                 limit=self.settings.search_result_limit,
                 location=location,
+                posted_since=datetime.now(timezone.utc)
+                - timedelta(days=self.settings.interactive_search_max_age_days),
                 deadline_at=self._request_deadline_at,
             )
             jobs = self._merge_unique_jobs(web_jobs, database_jobs)

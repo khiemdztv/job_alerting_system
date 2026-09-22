@@ -10,6 +10,8 @@
 - Request đầu tiên chỉ tìm trong bảy ngày gần nhất trên TopCV, VietnamWorks, CareerViet, JobsGO,
   Việc Làm 24h và TopDev. Nếu còn dưới ba kết quả, request thứ hai mở rộng sang các domain tuyển
   dụng tin cậy nhưng vẫn giữ cửa sổ bảy ngày; bot không còn fallback về tin trong một năm.
+- Kết quả bổ sung từ DynamoDB cũng phải có `posted_at` thật trong bảy ngày gần nhất. Bot không còn
+  xem ngày crawl lại trang là ngày đăng tuyển, nên các tin cũ được crawl lại sẽ không lọt vào `/search`.
 - Key được đọc từ AWS Secrets Manager qua `VIECLAMBOT_YOU_API_KEY_SECRET_ARN`, không nằm trong
   source hoặc file môi trường đã commit. `scripts/configure_you_search.py` cấp riêng quyền đọc
   secret cho webhook Lambda.

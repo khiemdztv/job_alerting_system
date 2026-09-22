@@ -121,6 +121,7 @@ def matches_filters(
     since: datetime | None = None,
     max_age_days: int = 60,
     now: datetime | None = None,
+    posted_since: datetime | None = None,
 ) -> bool:
     now = now or datetime.now(timezone.utc)
     expiry = timestamp(job.get("expires_at"))
@@ -132,6 +133,13 @@ def matches_filters(
     if scraped and scraped < now - timedelta(days=max_age_days):
         return False
     if since and (not scraped or scraped < since):
+        return False
+    posted = timestamp(job.get("posted_at"))
+    if posted_since and (
+        not posted
+        or posted < posted_since
+        or posted > now + timedelta(days=1)
+    ):
         return False
     if location and not contains(
         normalize_location(f"{job.get('location', '')} {job.get('location_normalized', '')}"),
@@ -167,13 +175,22 @@ def rank_jobs(
     location=None,
     salary_min=None,
     since=None,
+    posted_since=None,
     max_age_days=60,
     limit: int | None = 20,
 ) -> list[dict]:
     now = datetime.now(timezone.utc)
     ranked = []
     for job in jobs:
-        if not matches_filters(job, location, salary_min, since, max_age_days, now):
+        if not matches_filters(
+            job,
+            location=location,
+            salary_min=salary_min,
+            since=since,
+            max_age_days=max_age_days,
+            now=now,
+            posted_since=posted_since,
+        ):
             continue
         score = relevance(job, query)
         if score:

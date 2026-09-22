@@ -214,12 +214,14 @@ class DynamoDBLoader:
     def search_jobs(self, keyword: str, limit: int | None = 20, *,
                     location: str | None = None, salary_min: int | None = None,
                     since: datetime | None = None,
+                    posted_since: datetime | None = None,
                     deadline_at: float | None = None) -> list[dict]:
         from src.matcher.search import rank_jobs
         # Storage failures must propagate; they are not an empty search result.
         return rank_jobs(self.get_search_items(deadline_at=deadline_at), keyword,
                          location=location,
-                         salary_min=salary_min, since=since, limit=limit,
+                         salary_min=salary_min, since=since,
+                         posted_since=posted_since, limit=limit,
                          max_age_days=get_settings().max_job_age_days)
 
 

@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     alert_recovery_days: int = Field(default=7, ge=1, le=60)
     alert_max_jobs_per_user: int = Field(default=15, ge=1, le=50)
     search_result_limit: int = Field(default=100, ge=10, le=200)
+    interactive_search_max_age_days: int = Field(default=7, ge=1, le=30)
     search_snapshot_cache_seconds: int = Field(default=300, ge=0, le=3600)
     max_subscriptions: int = Field(default=10, ge=1, le=50)
     scrape_workers: int = Field(default=4, ge=1, le=8)
