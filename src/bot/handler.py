@@ -774,6 +774,7 @@ class TelegramBot:
         message_id = temp.get("message_id") if temp else None
         try:
             web_jobs = []
+            web_search_failed = False
             if self.settings.you_search_enabled:
                 try:
                     web_jobs = self._search_web(
@@ -782,15 +783,18 @@ class TelegramBot:
                         limit=min(20, self.settings.search_result_limit),
                     )
                 except Exception:
+                    web_search_failed = True
                     logger.exception("You.com API-first search failed")
-            database_jobs = self.db_loader.search_jobs(
-                query,
-                limit=self.settings.search_result_limit,
-                location=location,
-                posted_since=datetime.now(timezone.utc)
-                - timedelta(days=self.settings.interactive_search_max_age_days),
-                deadline_at=self._request_deadline_at,
-            )
+            database_jobs = []
+            if not self.settings.you_search_enabled or web_search_failed:
+                database_jobs = self.db_loader.search_jobs(
+                    query,
+                    limit=self.settings.search_result_limit,
+                    location=location,
+                    posted_since=datetime.now(timezone.utc)
+                    - timedelta(days=self.settings.interactive_search_max_age_days),
+                    deadline_at=self._request_deadline_at,
+                )
             jobs = self._merge_unique_jobs(web_jobs, database_jobs)
             if not jobs:
                 message = f"Chưa có việc phù hợp với ‘{query}’"
@@ -821,16 +825,22 @@ class TelegramBot:
         *,
         limit: int,
     ) -> list[dict]:
-        from src.web_search import YouSearchClient
+        from src.web_search import YouSearchClient, search_live_job_boards
 
         if self._you_search_client is None:
             self._you_search_client = YouSearchClient(self.settings)
-        return self._you_search_client.search(
+        provider_jobs = self._you_search_client.search(
+            query, location=location, limit=limit, deadline_at=self._request_deadline_at
+        )
+        if len(provider_jobs) >= min(5, limit):
+            return provider_jobs
+        live_jobs = search_live_job_boards(
             query,
             location=location,
-            limit=limit,
+            limit=limit - len(provider_jobs),
             deadline_at=self._request_deadline_at,
         )
+        return self._merge_unique_jobs(provider_jobs, live_jobs)[:limit]
 
     @staticmethod
     def _merge_unique_jobs(primary: list[dict], extra: list[dict]) -> list[dict]:

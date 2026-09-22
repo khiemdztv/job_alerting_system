@@ -12,6 +12,11 @@
   dụng tin cậy nhưng vẫn giữ cửa sổ bảy ngày; bot không còn fallback về tin trong một năm.
 - Kết quả bổ sung từ DynamoDB cũng phải có `posted_at` thật trong bảy ngày gần nhất. Bot không còn
   xem ngày crawl lại trang là ngày đăng tuyển, nên các tin cũ được crawl lại sẽ không lọt vào `/search`.
+- Do You.com có thể chưa index kịp tin vừa đăng, bot đọc thêm trang kết quả đang hoạt động của
+  CareerViet và Việc Làm 24h sau lượt API. Tìm kiếm mở rộng `AI Engineer Intern` sang `AI Intern`
+  để không bỏ sót vị trí liên quan, nhưng vẫn giữ bộ lọc địa điểm và loại URL trùng.
+- Khi tìm web thành công nhưng không có kết quả, `/search` báo chưa có tin phù hợp và không lấy dữ
+  liệu DynamoDB cũ để lấp danh sách.
 - Key được đọc từ AWS Secrets Manager qua `VIECLAMBOT_YOU_API_KEY_SECRET_ARN`, không nằm trong
   source hoặc file môi trường đã commit. `scripts/configure_you_search.py` cấp riêng quyền đọc
   secret cho webhook Lambda.

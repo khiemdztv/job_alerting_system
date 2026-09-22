@@ -155,7 +155,15 @@ def _canonical_url(value: str) -> str:
         (key, val)
         for key, val in parse_qsl(parsed.query, keep_blank_values=True)
         if not key.lower().startswith("utm_")
-        and key.lower() not in {"fbclid", "gclid", "trk", "trackingid"}
+        and key.lower()
+        not in {
+            "fbclid",
+            "gclid",
+            "open_from",
+            "search_id",
+            "trk",
+            "trackingid",
+        }
     ]
     return urlunsplit(
         (parsed.scheme.lower(), parsed.netloc.lower(), parsed.path, urlencode(query), "")

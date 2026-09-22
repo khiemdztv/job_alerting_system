@@ -134,7 +134,7 @@ def test_explicit_web_search_saves_verified_results(database, make_job, monkeypa
     more.assert_called_once_with("123", 9)
 
 
-def test_normal_search_puts_recent_web_results_before_database(
+def test_normal_search_uses_fresh_web_results_without_old_database(
     database, make_job, monkeypatch
 ):
     bot = TelegramBot()
@@ -146,14 +146,9 @@ def test_normal_search_puts_recent_web_results_before_database(
         source_url="https://topcv.vn/viec-lam/new-job/1",
         is_web_result=True,
     )
-    database_job = make_job(
-        job_id="database-job",
-        company="Existing Employer",
-        source_url="https://example.com/jobs/database-job",
-    )
     monkeypatch.setattr(bot, "_search_web", Mock(return_value=[web_job]))
     monkeypatch.setattr(
-        bot.db_loader, "search_jobs", Mock(return_value=[database_job])
+        bot.db_loader, "search_jobs", Mock(return_value=[make_job()])
     )
     save = Mock()
     more = Mock()
@@ -163,10 +158,31 @@ def test_normal_search_puts_recent_web_results_before_database(
 
     bot._handle_search("123", "data engineer | HCM")
 
-    assert save.call_args.args[1] == [web_job, database_job]
+    assert save.call_args.args[1] == [web_job]
     assert "web mới trước" in save.call_args.args[2]
-    assert "posted_since" in bot.db_loader.search_jobs.call_args.kwargs
+    bot.db_loader.search_jobs.assert_not_called()
     more.assert_called_once_with("123", 10)
+
+
+def test_empty_web_search_does_not_restore_stale_database_jobs(
+    database, make_job, monkeypatch
+):
+    bot = TelegramBot()
+    bot.settings.you_search_enabled = True
+    monkeypatch.setattr(bot, "_search_web", Mock(return_value=[]))
+    database_search = Mock(return_value=[make_job()])
+    monkeypatch.setattr(bot.db_loader, "search_jobs", database_search)
+    save = Mock()
+    monkeypatch.setattr(bot, "_save_search", save)
+    sent = Mock(return_value={"message_id": 11})
+    monkeypatch.setattr(bot, "send_message", sent)
+    monkeypatch.setattr(bot, "edit_message", Mock(return_value=False))
+
+    bot._handle_search("123", "ai engineer intern | HCM")
+
+    database_search.assert_not_called()
+    save.assert_not_called()
+    assert "Chưa có việc phù hợp" in sent.call_args_list[-1].args[1]
 
 
 def test_persistent_update_claim_blocks_retry_in_new_container(database, monkeypatch):
