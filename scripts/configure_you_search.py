@@ -59,8 +59,7 @@ def configure(profile: str, secret_name: str, function_name: str) -> dict:
             "VIECLAMBOT_YOU_SEARCH_ENABLED": "true",
             "VIECLAMBOT_YOU_SEARCH_COUNT": "25",
             "VIECLAMBOT_YOU_SEARCH_TIMEOUT_SECONDS": "8",
-            "VIECLAMBOT_YOU_SEARCH_FRESHNESS": "month",
-            "VIECLAMBOT_YOU_SEARCH_AUTO_THRESHOLD": "5",
+            "VIECLAMBOT_YOU_SEARCH_FRESHNESS": "week",
         }
     )
     lambda_client.update_function_configuration(

@@ -3,14 +3,13 @@
 ## Tìm việc trên web bằng You.com — 21/09/2026
 
 - Thêm lệnh `/web` và nút Telegram **🌐 Tìm thêm trên web**.
-- Khi cơ sở dữ liệu có dưới năm kết quả, bot có thể tự tìm bổ sung qua You.com Search API. Mỗi
-  request có timeout tám giây nên lỗi nhà cung cấp không chiếm hết thời gian webhook Telegram.
+- Mọi lệnh `/search` đều tìm qua You.com trước, sau đó mới ghép thêm kết quả từ DynamoDB. Kết quả
+  web mới nằm đầu danh sách; lỗi hoặc hết credit vẫn tự động dùng dữ liệu trong database.
 - Chỉ nhận kết quả có URL HTTP(S), đúng nghề và không xung đột địa điểm. Bot loại khóa học, bài
   hướng nghiệp, hồ sơ cá nhân, trang danh sách chung và URL trùng.
-- Tìm trong một tháng gần nhất trước; chỉ mở rộng sang các nền tảng tuyển dụng trong một năm khi
-  còn dưới ba kết quả đã xác minh.
-- Ưu tiên sáu nền tảng lớn tại Việt Nam: TopCV, VietnamWorks, CareerViet, JobsGO, Việc Làm 24h
-  và TopDev. Fallback chỉ tìm trong nhóm domain tuyển dụng tin cậy để giảm bài viết và kết quả rác.
+- Request đầu tiên chỉ tìm trong bảy ngày gần nhất trên TopCV, VietnamWorks, CareerViet, JobsGO,
+  Việc Làm 24h và TopDev. Nếu còn dưới ba kết quả, request thứ hai mở rộng sang các domain tuyển
+  dụng tin cậy nhưng vẫn giữ cửa sổ bảy ngày; bot không còn fallback về tin trong một năm.
 - Key được đọc từ AWS Secrets Manager qua `VIECLAMBOT_YOU_API_KEY_SECRET_ARN`, không nằm trong
   source hoặc file môi trường đã commit. `scripts/configure_you_search.py` cấp riêng quyền đọc
   secret cho webhook Lambda.

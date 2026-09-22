@@ -45,8 +45,9 @@ OTHER_JOB_DOMAINS = [
     "job-boards.greenhouse.io",
 ]
 
-# You.com treats this as a ranking boost, so company career pages can still
-# appear while the largest Vietnamese boards are preferred first.
+# The first request is restricted to the six large Vietnamese job boards.
+# This broader list is used only for a second recent-results request when the
+# first request is sparse.
 BOOST_DOMAINS = [*VIETNAM_JOB_DOMAINS, *OTHER_JOB_DOMAINS]
 
 JOB_SIGNALS = (
@@ -300,31 +301,35 @@ class YouSearchClient:
         limit: int = 20,
         deadline_at: float | None = None,
     ) -> list[dict]:
-        payload: dict = {
+        preferred_payload: dict = {
             "query": _query_for_web(query, location),
             "count": min(100, max(10, min(self.settings.you_search_count, limit * 2))),
             "country": "VN",
             "safesearch": "moderate",
-            "boost_domains": BOOST_DOMAINS,
+            "include_domains": VIETNAM_JOB_DOMAINS,
         }
         candidates = self._request(
-            payload,
+            preferred_payload,
             self.settings.you_search_freshness,
             deadline_at=deadline_at,
         )
         jobs = self._normalize(candidates, query, location, limit)
-        # A recent-only search can be sparse for internships. Broaden to one
-        # year only when the verified result set is still too small.
+        # Keep the same freshness window when broadening. This prevents an
+        # empty first request from filling the result list with old postings.
         if (
             len(jobs) < min(3, limit)
-            and self.settings.you_search_freshness not in {"", "year"}
             and (deadline_at is None or time.monotonic() < deadline_at - 2.5)
         ):
-            fallback_payload = dict(payload)
-            fallback_payload.pop("boost_domains", None)
-            fallback_payload["include_domains"] = BOOST_DOMAINS
+            fallback_payload = {
+                **preferred_payload,
+                "include_domains": BOOST_DOMAINS,
+            }
             candidates.extend(
-                self._request(fallback_payload, "year", deadline_at=deadline_at)
+                self._request(
+                    fallback_payload,
+                    self.settings.you_search_freshness,
+                    deadline_at=deadline_at,
+                )
             )
             jobs = self._normalize(candidates, query, location, limit)
         logger.info(

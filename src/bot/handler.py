@@ -771,28 +771,23 @@ class TelegramBot:
         temp = self.send_message(chat_id, "🔍 Đang tìm việc phù hợp…", parse_mode="")
         message_id = temp.get("message_id") if temp else None
         try:
-            jobs = self.db_loader.search_jobs(query, limit=self.settings.search_result_limit,
-                                              location=location,
-                                              deadline_at=self._request_deadline_at)
-            used_web = False
-            threshold = self.settings.you_search_auto_threshold
-            if (
-                self.settings.you_search_enabled
-                and threshold > 0
-                and len(jobs) < threshold
-            ):
+            web_jobs = []
+            if self.settings.you_search_enabled:
                 try:
                     web_jobs = self._search_web(
                         query,
                         location,
-                        limit=min(20, self.settings.search_result_limit - len(jobs)),
+                        limit=min(20, self.settings.search_result_limit),
                     )
-                    jobs = self._merge_unique_jobs(jobs, web_jobs)
-                    used_web = bool(web_jobs)
                 except Exception:
-                    # Database results remain useful when the optional provider
-                    # is unavailable or out of credit.
-                    logger.exception("Automatic You.com fallback failed")
+                    logger.exception("You.com API-first search failed")
+            database_jobs = self.db_loader.search_jobs(
+                query,
+                limit=self.settings.search_result_limit,
+                location=location,
+                deadline_at=self._request_deadline_at,
+            )
+            jobs = self._merge_unique_jobs(web_jobs, database_jobs)
             if not jobs:
                 message = f"Chưa có việc phù hợp với ‘{query}’"
                 if location:
@@ -804,8 +799,8 @@ class TelegramBot:
                 self.send_message(chat_id, message, parse_mode="")
                 return
             heading = f"🔍 {query}" + (f" · {location}" if location else "")
-            if used_web:
-                heading += " · có kết quả web"
+            if web_jobs:
+                heading += " · web mới trước"
             self._save_search(chat_id, jobs, heading)
             self._handle_more(chat_id, message_id)
         except Exception:

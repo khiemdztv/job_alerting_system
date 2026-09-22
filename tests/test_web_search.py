@@ -4,6 +4,7 @@ import pytest
 
 from src.config import Settings
 from src.web_search.you_search import (
+    BOOST_DOMAINS,
     VIETNAM_JOB_DOMAINS,
     YouSearchClient,
     YouSearchError,
@@ -63,10 +64,21 @@ def test_you_search_returns_only_relevant_job_urls(monkeypatch):
     assert jobs[0]["location"] == "Ho Chi Minh"
     assert jobs[0]["source_url"] == "https://acme.example/careers/data-analyst"
     assert jobs[0]["is_web_result"] is True
-    request = post.call_args
-    assert request.kwargs["headers"] == {"X-API-Key": "secret-test-key"}
-    assert request.kwargs["json"]["country"] == "VN"
-    assert "data analyst" in request.kwargs["json"]["query"]
+    assert post.call_count == 2
+    preferred_request, fallback_request = post.call_args_list
+    assert preferred_request.kwargs["headers"] == {
+        "X-API-Key": "secret-test-key"
+    }
+    assert preferred_request.kwargs["json"]["country"] == "VN"
+    assert "data analyst" in preferred_request.kwargs["json"]["query"]
+    assert preferred_request.kwargs["json"]["freshness"] == "week"
+    assert preferred_request.kwargs["json"]["include_domains"] == VIETNAM_JOB_DOMAINS
+    assert fallback_request.kwargs["json"]["freshness"] == "week"
+    assert fallback_request.kwargs["json"]["include_domains"] == BOOST_DOMAINS
+    assert all(
+        call.kwargs["json"].get("freshness") != "year"
+        for call in post.call_args_list
+    )
 
 
 def test_you_search_maps_credit_error_without_response_body(monkeypatch):

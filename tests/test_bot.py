@@ -134,6 +134,40 @@ def test_explicit_web_search_saves_verified_results(database, make_job, monkeypa
     more.assert_called_once_with("123", 9)
 
 
+def test_normal_search_puts_recent_web_results_before_database(
+    database, make_job, monkeypatch
+):
+    bot = TelegramBot()
+    bot.settings.you_search_enabled = True
+    web_job = make_job(
+        job_id="web-job",
+        company="New Web Employer",
+        source="Web · TopCV",
+        source_url="https://topcv.vn/viec-lam/new-job/1",
+        is_web_result=True,
+    )
+    database_job = make_job(
+        job_id="database-job",
+        company="Existing Employer",
+        source_url="https://example.com/jobs/database-job",
+    )
+    monkeypatch.setattr(bot, "_search_web", Mock(return_value=[web_job]))
+    monkeypatch.setattr(
+        bot.db_loader, "search_jobs", Mock(return_value=[database_job])
+    )
+    save = Mock()
+    more = Mock()
+    monkeypatch.setattr(bot, "_save_search", save)
+    monkeypatch.setattr(bot, "_handle_more", more)
+    monkeypatch.setattr(bot, "send_message", Mock(return_value={"message_id": 10}))
+
+    bot._handle_search("123", "data engineer | HCM")
+
+    assert save.call_args.args[1] == [web_job, database_job]
+    assert "web mới trước" in save.call_args.args[2]
+    more.assert_called_once_with("123", 10)
+
+
 def test_persistent_update_claim_blocks_retry_in_new_container(database, monkeypatch):
     _processed_update_ids.clear()
     first = TelegramBot()
