@@ -1,5 +1,35 @@
 # Bản sửa alert và tìm việc
 
+## Tìm việc đa nền tảng — 08/10/2026
+
+- **Một registry nguồn duy nhất** (`src/scrapers/registry.py`) thay cho ba danh sách viết tay ở scraper
+  định kỳ, tìm kiếm live và script chẩn đoán. Trước đây scraper định kỳ bỏ qua VietnamWorks, JobsGO,
+  TopDev; còn tìm kiếm live chỉ đọc 5 nguồn và bỏ qua CareerLink, ITviec, Việc Làm Tốt, TimViec365,
+  Jooble, YBox. Nay cả 11 nguồn đều được đăng ký một lần với cờ `batch`/`live`, độ ưu tiên live và
+  điều kiện API key; thêm nguồn mới chỉ cần một dòng.
+- **`/search` luôn đọc trực tiếp các trang tuyển dụng**, không còn phụ thuộc You.com. Live search
+  chạy nền ngay khi nhận lệnh, song song với You.com (nếu bật) hoặc DynamoDB, rồi gộp và xếp hạng
+  lại toàn bộ theo độ phù hợp → thời gian → xen kẽ nguồn. Tin khớp chính xác trong DB không bị tin
+  yếu từ live đẩy xuống; bản trùng giữa nguồn giữ bản mới nhất.
+- **Chế độ live cho scraper** (`BaseScraper.use_live_budget`): mỗi nguồn một request, timeout ngắn
+  (`VIECLAMBOT_LIVE_SEARCH_TIMEOUT_SECONDS`, mặc định 6s), không retry, không delay giữa request,
+  tôn trọng deadline của webhook. Nguồn chậm bị cắt đúng hạn và không chặn nguồn khác; kết quả một
+  phần vẫn được trả về. Thống kê từng nguồn (số tin, số tin phù hợp, thời gian, lỗi) được log mỗi lần.
+- **Cache live theo container** (`VIECLAMBOT_LIVE_SEARCH_CACHE_SECONDS`, mặc định 5 phút) để các lượt
+  tìm lặp lại cùng từ khóa/địa điểm không gọi lại các trang.
+- Giới hạn số nguồn live bằng `VIECLAMBOT_LIVE_SEARCH_MAX_SOURCES`; tắt hẳn bằng
+  `VIECLAMBOT_LIVE_SEARCH_ENABLED=false`. `/web` vẫn dùng You.com trước và chỉ đọc live khi có dưới
+  `VIECLAMBOT_LIVE_SEARCH_MIN_RESULTS` kết quả.
+- Scraper định kỳ nay cào cả VietnamWorks, JobsGO, TopDev nên DynamoDB và alert cũng phủ rộng hơn.
+- JobsGO đọc địa điểm và lương từ hàng metadata của thẻ việc (không còn lấy nhầm tên thành phố trong
+  tiêu đề), nhận ngày cập nhật dạng "18 phút trước". TopDev có timeout live riêng 4 giây vì máy chủ
+  thường trả chậm hơn 8 giây; CareerLink nối nhiều thành phố bằng dấu phẩy.
+- `scripts/test_scrapers_live.py [từ khóa] [--live]` thăm dò toàn bộ nguồn trong registry và báo
+  số tin thô/phù hợp, thời gian, lỗi theo từng nguồn; `scripts/diagnose.py --sources` cũng dùng registry.
+- Kiểm chứng: 79 test pass (thêm test registry, live search song song, cắt deadline, cache, gộp xếp
+  hạng trong bot). Probe live từ máy phát triển: 10/11 nguồn trả dữ liệu trong 1,5–5 giây; TopDev
+  timeout ở lần thử này.
+
 ## Tìm việc trên web bằng You.com — 21/09/2026
 
 - Thêm lệnh `/web` và nút Telegram **🌐 Tìm thêm trên web**.

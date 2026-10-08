@@ -1,93 +1,67 @@
-"""
-Test scrapers live on the real websites.
+"""Probe every registered job source live and report what each one returns.
+
+Usage:
+    python scripts/test_scrapers_live.py ["kế toán"] [--live]
+
+--live tunes each scraper the way an interactive /search does (short timeout,
+no retries) so the numbers reflect what the Telegram bot can actually reach.
 """
 from __future__ import annotations
 
-import sys
+import argparse
 import os
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
-# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from src.scrapers.careerlink_scraper import CareerLinkScraper
-from src.scrapers.vieclam24h_scraper import ViecLam24hScraper
-from src.scrapers.itviec_scraper import ITviecScraper
-from src.scrapers.careerviet_scraper import CareerVietScraper
-from src.scrapers.timviec365_scraper import TimViec365Scraper
-from src.scrapers.jooble_scraper import JoobleScraper
-from src.scrapers.ybox_scraper import YBoxScraper
-from src.etl.transformer import Transformer
-from src.common.logger import get_logger
+from src.config import get_settings  # noqa: E402
+from src.etl.transformer import Transformer  # noqa: E402
+from src.matcher.search import rank_jobs  # noqa: E402
+from src.scrapers.registry import available_sources  # noqa: E402
 
-logger = get_logger(__name__)
 
-def test_live():
-    print("=== Testing CareerLink Scraper ===")
-    cl = CareerLinkScraper()
-    cl_jobs = cl.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(cl_jobs)} raw jobs from CareerLink")
-    if cl_jobs:
-        print(f"First job: {cl_jobs[0].title} @ {cl_jobs[0].company} (Salary: {cl_jobs[0].salary_raw})")
-    
-    print("\n=== Testing ViecLam24h Scraper ===")
-    vl = ViecLam24hScraper()
-    vl_jobs = vl.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(vl_jobs)} raw jobs from ViecLam24h")
-    if vl_jobs:
-        print(f"First job: {vl_jobs[0].title} @ {vl_jobs[0].company} (Salary: {vl_jobs[0].salary_raw})")
+def probe(spec, keyword: str, live: bool):
+    settings = get_settings()
+    scraper = spec.factory()
+    if live:
+        scraper.use_live_budget(
+            time.monotonic() + 18, spec.live_timeout or settings.live_search_timeout_seconds
+        )
+    started = time.monotonic()
+    try:
+        raw = scraper.scrape(keyword, max_pages=1)
+        error = scraper.last_error
+    except Exception as exc:
+        raw, error = [], f"{type(exc).__name__}: {exc}"[:60]
+    finally:
+        scraper.session.close()
+    jobs = [job.to_dynamo_item() for job in Transformer().transform_batch(raw)]
+    relevant = rank_jobs(jobs, keyword, limit=None)
+    sample = ""
+    if relevant:
+        first = relevant[0]
+        sample = f"{first['title'][:45]} @ {first.get('company', '')[:25]} | {first.get('location', '')[:18]}"
+    return (
+        f"{spec.label:14s} raw={len(raw):3d} relevant={len(relevant):3d} "
+        f"t={time.monotonic() - started:4.1f}s err={error or '-':22s} {sample}"
+    )
 
-    print("\n=== Testing ITviec Scraper ===")
-    it = ITviecScraper()
-    it_jobs = it.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(it_jobs)} raw jobs from ITviec")
-    if it_jobs:
-        print(f"First job: {it_jobs[0].title} @ {it_jobs[0].company} (Salary: {it_jobs[0].salary_raw})")
 
-    print("\n=== Testing CareerViet Scraper ===")
-    cv = CareerVietScraper()
-    cv_jobs = cv.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(cv_jobs)} raw jobs from CareerViet")
-    if cv_jobs:
-        print(f"First job: {cv_jobs[0].title} @ {cv_jobs[0].company} (Salary: {cv_jobs[0].salary_raw})")
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("keyword", nargs="?", default="data engineer")
+    parser.add_argument("--live", action="store_true", help="use interactive live-search budget")
+    args = parser.parse_args()
+    specs = available_sources()
+    print(f"Probing {len(specs)} sources for '{args.keyword}' (live={args.live})")
+    with ThreadPoolExecutor(max_workers=len(specs)) as pool:
+        for line in pool.map(lambda spec: probe(spec, args.keyword, args.live), specs):
+            print(line)
 
-    print("\n=== Testing TimViec365 Scraper ===")
-    tv = TimViec365Scraper()
-    tv_jobs = tv.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(tv_jobs)} raw jobs from TimViec365")
-    if tv_jobs:
-        print(f"First job: {tv_jobs[0].title} @ {tv_jobs[0].company} (Salary: {tv_jobs[0].salary_raw})")
-
-    print("\n=== Testing Jooble Scraper ===")
-    jb = JoobleScraper()
-    jb_jobs = jb.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(jb_jobs)} raw jobs from Jooble")
-    if jb_jobs:
-        print(f"First job: {jb_jobs[0].title} @ {jb_jobs[0].company} (Salary: {jb_jobs[0].salary_raw})")
-
-    print("\n=== Testing Ybox Scraper ===")
-    yb = YBoxScraper()
-    yb_jobs = yb.scrape("data engineer", max_pages=1)
-    print(f"Scraped {len(yb_jobs)} raw jobs from Ybox")
-    if yb_jobs:
-        print(f"First job: {yb_jobs[0].title} @ {yb_jobs[0].company} (Salary: {yb_jobs[0].salary_raw})")
-
-    print("\n=== Testing ETL Transformation ===")
-    transformer = Transformer()
-    all_raw = cl_jobs + vl_jobs + it_jobs + cv_jobs + tv_jobs + jb_jobs + yb_jobs
-    print(f"Total raw jobs: {len(all_raw)}")
-    
-    transformed_jobs = transformer.transform_batch(all_raw)
-    print(f"Successfully transformed {len(transformed_jobs)} jobs")
-    if transformed_jobs:
-        job = transformed_jobs[0]
-        print(f"Transformed Job Detail:")
-        print(f"  ID: {job.job_id}")
-        print(f"  Title: {job.title} (Normalized: {job.title_normalized})")
-        print(f"  Company: {job.company}")
-        print(f"  Location: {job.location} (Normalized: {job.location_normalized})")
-        print(f"  Salary Min: {job.salary_min} VND, Max: {job.salary_max} VND")
-        print(f"  Tags: {job.tags}")
 
 if __name__ == "__main__":
-    test_live()
-
+    main()

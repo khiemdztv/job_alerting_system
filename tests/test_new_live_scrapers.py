@@ -79,3 +79,33 @@ def test_vietnamworks_reads_next_data(monkeypatch):
     assert jobs[0].title == "AI Engineer Intern"
     assert jobs[0].location == "Hồ Chí Minh"
     assert "Machine Learning" in jobs[0].description
+
+
+def test_jobsgo_reads_city_from_metadata_row_not_title(monkeypatch):
+    html = """
+    <div class="card job-card" data-id="1">
+      <h3 class="job-title">
+        <a href="/viec-lam/kinh-doanh-1.html" title="Nhân Viên Kinh Doanh Tại Hồ Chí Minh">
+          <span style="color:white">HOT</span> Nhân Viên Kinh Doanh Tại Hồ Chí Minh
+        </a>
+      </h3>
+      <a class="company-title" title="Stagro">Stagro</a>
+      <div class="mt-1 text-primary fw-semibold small">
+        <span>Từ 30 triệu VNĐ</span><span class="px-2">|</span><span>Hà Nội</span>
+      </div>
+      <div class="small">
+        <span class="badge" title="Loại hình">Full-time</span>
+        <span class="badge" title="Thời gian cập nhật">18 phút trước</span>
+      </div>
+    </div>
+    """
+    scraper = JobsGoScraper()
+    monkeypatch.setattr(scraper, "_get", Mock(return_value=response(html)))
+
+    jobs = scraper.scrape("nhân viên kinh doanh", max_pages=1)
+
+    assert len(jobs) == 1
+    assert jobs[0].title == "Nhân Viên Kinh Doanh Tại Hồ Chí Minh"
+    assert jobs[0].location == "Hà Nội"
+    assert jobs[0].salary_raw == "Từ 30 triệu VNĐ"
+    assert jobs[0].posted_at_raw == "18 phút trước"

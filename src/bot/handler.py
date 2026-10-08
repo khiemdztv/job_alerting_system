@@ -770,9 +770,15 @@ class TelegramBot:
                 parse_mode="",
             )
             return
-        temp = self.send_message(chat_id, "🔍 Đang tìm việc phù hợp…", parse_mode="")
+        temp = self.send_message(
+            chat_id, "🔍 Đang tìm trên các trang tuyển dụng…", parse_mode=""
+        )
         message_id = temp.get("message_id") if temp else None
         try:
+            # Live boards run in the background while the provider/database answer.
+            live_future = self._start_live_search(
+                query, location, limit=min(20, self.settings.search_result_limit)
+            )
             web_jobs = []
             web_search_failed = False
             if self.settings.you_search_enabled:
@@ -781,6 +787,7 @@ class TelegramBot:
                         query,
                         location,
                         limit=min(20, self.settings.search_result_limit),
+                        include_live=False,
                     )
                 except Exception:
                     web_search_failed = True
@@ -795,7 +802,8 @@ class TelegramBot:
                     - timedelta(days=self.settings.interactive_search_max_age_days),
                     deadline_at=self._request_deadline_at,
                 )
-            jobs = self._merge_unique_jobs(web_jobs, database_jobs)
+            live_jobs = self._collect_live_search(live_future)
+            jobs = self._merge_ranked_jobs(query, location, live_jobs, web_jobs, database_jobs)
             if not jobs:
                 message = f"Chưa có việc phù hợp với ‘{query}’"
                 if location:
@@ -807,7 +815,7 @@ class TelegramBot:
                 self.send_message(chat_id, message, parse_mode="")
                 return
             heading = f"🔍 {query}" + (f" · {location}" if location else "")
-            if web_jobs:
+            if live_jobs or web_jobs:
                 heading += " · web mới trước"
             self._save_search(chat_id, jobs, heading)
             self._handle_more(chat_id, message_id)
@@ -818,29 +826,85 @@ class TelegramBot:
                 return
             self.send_message(chat_id, message, parse_mode="")
 
+    def _start_live_search(self, query: str, location: str | None, *, limit: int):
+        """Kick off the multi-board live search without blocking the request."""
+        if not self.settings.live_search_enabled:
+            return None
+        from concurrent.futures import ThreadPoolExecutor
+
+        from src.web_search.live_boards import search_live_job_boards
+
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(
+            search_live_job_boards,
+            query,
+            location=location,
+            limit=limit,
+            deadline_at=self._request_deadline_at,
+            settings=self.settings,
+        )
+        executor.shutdown(wait=False)
+        return future
+
+    def _collect_live_search(self, future) -> list[dict]:
+        if future is None:
+            return []
+        timeout = None
+        if self._request_deadline_at is not None:
+            timeout = max(0.0, self._request_deadline_at - time.monotonic())
+        try:
+            return list(future.result(timeout=timeout))
+        except Exception:
+            logger.exception("Live-board search failed")
+            return []
+
     def _search_web(
         self,
         query: str,
         location: str | None,
         *,
         limit: int,
+        include_live: bool = True,
     ) -> list[dict]:
-        from src.web_search import YouSearchClient, search_live_job_boards
+        from src.web_search import YouSearchClient
+        from src.web_search.live_boards import search_live_job_boards
 
         if self._you_search_client is None:
             self._you_search_client = YouSearchClient(self.settings)
         provider_jobs = self._you_search_client.search(
             query, location=location, limit=limit, deadline_at=self._request_deadline_at
         )
-        if len(provider_jobs) >= min(5, limit):
+        if not include_live or not self.settings.live_search_enabled:
+            return provider_jobs
+        if len(provider_jobs) >= min(self.settings.live_search_min_results, limit):
             return provider_jobs
         live_jobs = search_live_job_boards(
             query,
             location=location,
             limit=limit - len(provider_jobs),
             deadline_at=self._request_deadline_at,
+            settings=self.settings,
         )
         return self._merge_unique_jobs(provider_jobs, live_jobs)[:limit]
+
+    def _merge_ranked_jobs(
+        self, query: str, location: str | None, *groups: list[dict]
+    ) -> list[dict]:
+        """Union results from every provider and rank them as one list.
+
+        Relevance decides first, recency second, then sources are interleaved,
+        so a live board cannot push an exact database hit off the first page.
+        Groups are listed freshest first so duplicates keep the freshest copy.
+        """
+        from src.matcher.search import query_variants, rank_jobs_multi
+
+        return rank_jobs_multi(
+            self._merge_unique_jobs([job for group in groups for job in group], []),
+            query_variants(query),
+            location=location,
+            limit=self.settings.search_result_limit,
+            max_age_days=self.settings.max_job_age_days,
+        )
 
     @staticmethod
     def _merge_unique_jobs(primary: list[dict], extra: list[dict]) -> list[dict]:

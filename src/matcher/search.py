@@ -218,6 +218,45 @@ def rank_jobs(
     return result
 
 
+def query_variants(query: str) -> list[str]:
+    """Phrasings a board or ranker should also accept for this query.
+
+    Seniority wording such as "AI Engineer Intern" is broadened to the related
+    internship titles employers actually post, while the field is retained.
+    """
+    variants = [re.sub(r"\s+", " ", str(query or "")).strip()]
+    cleaned = clean_vn_text(query)
+    if "intern" in cleaned and re.search(r"(?<!\w)ai(?!\w)", cleaned):
+        variants.extend(["ai intern", "machine learning intern", "computer vision intern"])
+    return list(dict.fromkeys(item for item in variants if item))
+
+
+def rank_jobs_multi(
+    jobs: list[dict],
+    queries: list[str],
+    *,
+    location=None,
+    limit: int | None = 20,
+    max_age_days: int = 60,
+) -> list[dict]:
+    """Rank for the primary query first, then append hits for each variant.
+
+    Results from different providers are merged here, so an exact hit from the
+    database never sits below a weak hit from a live board.
+    """
+    ranked, seen = [], set()
+    for query in queries:
+        for job in rank_jobs(jobs, query, location=location, limit=None, max_age_days=max_age_days):
+            key = identity(job)
+            if key in seen:
+                continue
+            seen.add(key)
+            ranked.append(job)
+            if limit is not None and len(ranked) >= limit:
+                return ranked
+    return ranked
+
+
 def parse_search(text: str) -> tuple[str, str | None]:
     text = text.strip()
     for separator in ("|", ","):

@@ -50,6 +50,11 @@ class BaseScraper(ABC):
         self.session = self._create_session()
         self._last_request_time: float = 0.0
         self.deadline_at: float | None = None
+        # Seconds that must remain before deadline_at for a request to start.
+        # Batch runs keep a wide margin so S3/SQS persistence still fits.
+        self.budget_margin: float = 20.0
+        self.request_timeout: float = 5.0
+        self.live_mode: bool = False
         self.last_error: str = ""
 
     def _create_session(self) -> requests.Session:
@@ -74,10 +79,30 @@ class BaseScraper(ABC):
 
         return session
 
+    def use_live_budget(self, deadline_at: float | None, timeout: float) -> None:
+        """Tune this scraper for an interactive request instead of a batch run.
+
+        A Telegram webhook has roughly 18 seconds for everything, so each board
+        gets one short request, no automatic retry, and no inter-request delay.
+        """
+        self.live_mode = True
+        self.deadline_at = deadline_at
+        self.budget_margin = 1.0
+        self.request_timeout = timeout
+        adapter = requests.adapters.HTTPAdapter(max_retries=0)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
     def _rate_limit(self) -> None:
         """Enforce delay between requests with jitter to avoid fingerprinting."""
-        if self.deadline_at is not None and time.monotonic() + 20 >= self.deadline_at:
+        if (
+            self.deadline_at is not None
+            and time.monotonic() + self.budget_margin >= self.deadline_at
+        ):
             raise TimeoutError("Scrape budget exhausted")
+        if self.live_mode:
+            self._last_request_time = time.time()
+            return
         elapsed = time.time() - self._last_request_time
         base_delay = self.settings.scrape_delay_seconds
         # Add random jitter (0.5-1.5s) to avoid consistent timing patterns
@@ -115,7 +140,9 @@ class BaseScraper(ABC):
             extra={"source": self.source.value},
         )
         try:
-            timeout = kwargs.pop("timeout", 5)
+            timeout = kwargs.pop("timeout", self.request_timeout)
+            if self.live_mode:
+                timeout = min(float(timeout), self.request_timeout)
             response = self.session.get(
                 url, params=params, timeout=timeout, headers=headers, **kwargs
             )
@@ -142,7 +169,8 @@ class BaseScraper(ABC):
             extra={"source": self.source.value},
         )
         try:
-            response = self.session.post(url, json=json_data, timeout=5, **kwargs)
+            timeout = kwargs.pop("timeout", self.request_timeout)
+            response = self.session.post(url, json=json_data, timeout=timeout, **kwargs)
             response.raise_for_status()
             return response
         except requests.RequestException as exc:

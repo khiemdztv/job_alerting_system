@@ -110,7 +110,8 @@ class CareerLinkScraper(BaseScraper):
 
             # Location
             location_el = raw_data.find(class_="job-location")
-            location = location_el.get_text(strip=True) if location_el else ""
+            # Several city spans sit side by side; keep them separated.
+            location = location_el.get_text(", ", strip=True) if location_el else ""
 
             # Salary
             salary_el = raw_data.find(class_="job-salary")

@@ -21,14 +21,7 @@ from src.common.logger import get_logger
 from src.common.scraper_health import ScrapeResult, ScrapeStatus, record_health
 from src.config import get_settings
 from src.data_quality.validators import RawJobValidator
-from src.scrapers.careerlink_scraper import CareerLinkScraper
-from src.scrapers.careerviet_scraper import CareerVietScraper
-from src.scrapers.chotot_scraper import ChototScraper
-from src.scrapers.itviec_scraper import ITviecScraper
-from src.scrapers.jooble_scraper import JoobleScraper
-from src.scrapers.timviec365_scraper import TimViec365Scraper
-from src.scrapers.vieclam24h_scraper import ViecLam24hScraper
-from src.scrapers.ybox_scraper import YBoxScraper
+from src.scrapers.registry import batch_scrapers
 
 logger = get_logger(__name__)
 
@@ -64,22 +57,13 @@ def handler(event, context):
 
     logger.info("Starting scraper run", extra={"source": "all"})
 
-    # Initialize scrapers (all active sources)
-    scrapers = [
-        CareerLinkScraper(),
-        ViecLam24hScraper(),
-        ITviecScraper(),
-        CareerVietScraper(),
-        TimViec365Scraper(),
-        YBoxScraper(),
-        ChototScraper(),    # New: multi-industry (blue-collar, retail, F&B)
-    ]
-
-    # Add Jooble if API key is configured
-    if settings.jooble_api_key:
-        scrapers.append(JoobleScraper())
-    else:
-        logger.info("Jooble API key not set, skipping Jooble scraper")
+    # Every registered board that is configured (see src/scrapers/registry.py).
+    scrapers = batch_scrapers(settings)
+    logger.info(
+        "Scraping %s sources: %s",
+        len(scrapers),
+        ", ".join(scraper.source.value for scraper in scrapers),
+    )
 
     # Get keywords from subscriptions + defaults
     keywords = _get_active_keywords(settings)
