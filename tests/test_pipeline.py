@@ -165,3 +165,33 @@ def test_scraper_honors_page_setting_and_flushes_each_keyword(monkeypatch):
     assert result["keywords_completed"] == 2
     assert pushed.call_count == 2
     assert scraper.scrape_safe.call_args.kwargs["max_pages"] == settings.scrape_max_pages
+
+
+def test_blocked_source_is_reported_as_blocked_not_error(monkeypatch):
+    import requests
+
+    from src.common.models import JobSource
+    from src.scrapers.careerlink_scraper import CareerLinkScraper
+
+    scraper = CareerLinkScraper()
+    response = Mock(status_code=403)
+    error = requests.HTTPError("403 Client Error", response=response)
+    monkeypatch.setattr(scraper.session, "get", Mock(side_effect=error))
+    with pytest.raises(requests.HTTPError):
+        scraper._get("https://www.careerlink.vn/vieclam/list")
+    assert scraper.last_error == "HTTP403"
+
+    recorded = {}
+    monkeypatch.setattr(
+        "lambdas.scraper_handler.record_health", lambda result, settings: recorded.update(
+            {"status": result.status, "error": result.error}
+        )
+    )
+    monkeypatch.setattr(scraper, "scrape_safe", Mock(side_effect=lambda *a, **k: (
+        setattr(scraper, "last_error", "HTTP403"), [])[1]))
+    import time
+
+    summary = _scrape_source(scraper, ["kế toán"], get_settings(), time.monotonic() + 60)
+    assert summary["status"] == "blocked"
+    assert recorded["status"].value == "blocked"
+    assert scraper.source is JobSource.CAREERLINK

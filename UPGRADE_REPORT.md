@@ -26,9 +26,23 @@
   thường trả chậm hơn 8 giây; CareerLink nối nhiều thành phố bằng dấu phẩy.
 - `scripts/test_scrapers_live.py [từ khóa] [--live]` thăm dò toàn bộ nguồn trong registry và báo
   số tin thô/phù hợp, thời gian, lỗi theo từng nguồn; `scripts/diagnose.py --sources` cũng dùng registry.
-- Kiểm chứng: 79 test pass (thêm test registry, live search song song, cắt deadline, cache, gộp xếp
-  hạng trong bot). Probe live từ máy phát triển: 10/11 nguồn trả dữ liệu trong 1,5–5 giây; TopDev
-  timeout ở lần thử này.
+- `/health` phân biệt nguồn **bị chặn** (HTTP 403/429/503, trạng thái `blocked`) với nguồn lỗi thật
+  (`error`), nhờ `BaseScraper` ghi mã HTTP vào `last_error`.
+- Kiểm chứng local: 81 test pass (thêm test registry, live search song song, cắt deadline, cache, gộp
+  xếp hạng trong bot, JobsGO đọc metadata, trạng thái blocked). Probe live từ máy phát triển: 10/11
+  nguồn trả dữ liệu trong 1,5–5 giây.
+- Triển khai AWS ngày 08/10/2026 bằng `scripts/deploy_reviewed.py --profile vieclambot`, sau khi sao
+  lưu 4 Lambda đang chạy vào `dist/cloud-backup-20261008/`. Hash code sau triển khai:
+  `h2DSCivsxLAl+hTeJjj6LfOpfSxhnHtZbBURwVqxbx4=` trên cả etl, webhook, matcher, scraper.
+- Kiểm chứng trên AWS: webhook cold start trả 200. Một lệnh `/search kế toán | HCM` thử nghiệm (gửi
+  tới chat không tồn tại, không ai nhận tin) hoàn tất trong 7,2 giây: live search đọc 11 nguồn, 202
+  tin thô, 70 tin phù hợp, kèm You.com. Scraper định kỳ chạy thủ công xong trong 7,6 phút với 14 từ
+  khóa, thu **9.401 bản ghi thô** (lần đo 09/2026: 6.673 từ 6 nguồn): CareerViet 2.270, VietnamWorks
+  2.085, Vieclam24h 1.789, Việc Làm Tốt 1.466, ITviec 827, TopDev 768, Jooble 174, YBox 22. ETL nạp
+  hết, hàng đợi chính và DLQ về 0, không có lỗi ETL.
+- **Giới hạn từ IP AWS:** JobsGO và TimViec365 trả 403 (chặn dải IP Lambda; từ máy cá nhân vẫn chạy),
+  CareerLink trả trang không có tin. Ba nguồn này vẫn trong registry vì chạy được local và chỉ tốn
+  ~0,3 giây khi bị từ chối; muốn có chúng trên cloud cần proxy/residential IP hoặc cloudscraper.
 
 ## Tìm việc trên web bằng You.com — 21/09/2026
 
