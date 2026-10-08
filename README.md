@@ -4,6 +4,12 @@ Live Telegram Bot: [https://t.me/cty_khong_bot](https://t.me/cty_khong_bot)
 
 Current alert/search fixes, verification results and deployment notes: [UPGRADE_REPORT.md](UPGRADE_REPORT.md).
 
+**Multi-board search:** every job source is registered once in `src/scrapers/registry.py` and used by
+the scheduled scraper, the interactive `/search` live search and the diagnostics scripts. `/search`
+queries all live-capable boards in parallel (one short request each, deadline-bound, cached per
+container) and merges them with You.com and DynamoDB results into a single ranked list. Tune with
+`VIECLAMBOT_LIVE_SEARCH_*` (see `.env.example`); probe sources with `python scripts/test_scrapers_live.py "kế toán" --live`.
+
 **ViecLamBot** is a serverless Vietnamese job aggregator and notification system designed to crawl, process, filter, and deliver job opportunities in Vietnam directly to users via Telegram. It supports parallel search, Vietnamese spelling tolerance, source interleaving, location-aware filtering, and resilient serverless workflows on AWS.
 
 ---

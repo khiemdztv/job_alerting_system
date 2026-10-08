@@ -15,7 +15,7 @@ import requests
 from src.common.logger import get_logger
 from src.common.text_utils import clean_vn_text
 from src.config import Settings, get_settings
-from src.matcher.search import identity, normalize_location, rank_jobs
+from src.matcher.search import identity, normalize_location, query_variants, rank_jobs_multi
 
 logger = get_logger(__name__)
 
@@ -412,18 +412,4 @@ class YouSearchClient:
             seen_urls.add(url)
             jobs.append(job)
 
-        queries = [query]
-        cleaned_query = clean_vn_text(query)
-        if "intern" in cleaned_query and re.search(r"(?<!\w)ai(?!\w)", cleaned_query):
-            queries.extend(["ai intern", "machine learning intern", "computer vision intern"])
-        deduplicated, seen = [], set()
-        for rank_query in queries:
-            for job in rank_jobs(jobs, rank_query, location=location, limit=None):
-                key = identity(job)
-                if key in seen:
-                    continue
-                seen.add(key)
-                deduplicated.append(job)
-                if len(deduplicated) >= limit:
-                    return deduplicated
-        return deduplicated
+        return rank_jobs_multi(jobs, query_variants(query), location=location, limit=limit)

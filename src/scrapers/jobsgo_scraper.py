@@ -3,6 +3,13 @@
 JobsGO serves current listings to search-engine crawlers while its normal
 browser endpoint uses a Cloudflare challenge.  We use the documented public
 listing pages and parse only job cards already present in the HTML.
+
+Verified card markup (October 2026):
+- Container: div.job-card
+- Title: h3.job-title a[title] (text may be prefixed by a "HOT" badge span)
+- Company: a.company-title
+- Salary and city: spans inside div.text-primary, separated by a "|" span
+- Updated: span.badge[title="Thời gian cập nhật"], e.g. "18 phút trước"
 """
 
 from __future__ import annotations
@@ -18,6 +25,10 @@ from src.common.text_utils import slugify_vn
 from src.scrapers.base_scraper import BaseScraper
 
 BASE_URL = "https://jobsgo.vn"
+
+_SALARY = re.compile(r"triệu|VNĐ|USD|thỏa thuận", re.I)
+_CITY = re.compile(r"Hồ Chí Minh|TP\.?\s*HCM|Hà Nội|Đà Nẵng|Bình Dương|Đồng Nai|Remote", re.I)
+_AGO = re.compile(r"\d+\s+(?:phút|giờ|ngày|tuần|tháng)\s+trước", re.I)
 
 
 class JobsGoScraper(BaseScraper):
@@ -43,36 +54,37 @@ class JobsGoScraper(BaseScraper):
         title_link = raw_data.select_one(".job-title a[href]")
         if not title_link:
             return None
-        title = title_link.get_text(" ", strip=True)
+        title = (title_link.get("title") or "").strip() or title_link.get_text(" ", strip=True)
         company_el = raw_data.select_one(".company-title")
         company = company_el.get_text(" ", strip=True) if company_el else ""
         source_url = urljoin(BASE_URL, title_link.get("href", ""))
 
-        text_parts = [part.strip() for part in raw_data.stripped_strings if part.strip()]
-        salary = next(
-            (part for part in text_parts if re.search(r"triệu|VNĐ|USD|thỏa thuận", part, re.I)),
-            "",
-        )
-        location = next(
-            (
-                part
-                for part in text_parts
-                if re.search(
-                    r"Hồ Chí Minh|TP\.?\s*HCM|Hà Nội|Đà Nẵng|Bình Dương|Đồng Nai|Remote",
-                    part,
-                    re.I,
-                )
-            ),
-            "",
-        )
-        posted = next(
-            (
-                part
-                for part in text_parts
-                if re.search(r"\d+\s+(?:giờ|ngày|tuần|tháng)\s+trước", part, re.I)
-            ),
-            "",
-        )
+        # Salary and city live in one metadata row; the job title is never consulted
+        # for the city, because titles such as "... tại Hồ Chí Minh" misled the old parser.
+        meta = raw_data.select_one(".text-primary")
+        meta_parts = [
+            part
+            for span in (meta.find_all("span") if meta else [])
+            if (part := span.get_text(" ", strip=True)) and part != "|"
+        ]
+        salary = next((part for part in meta_parts if _SALARY.search(part)), "")
+        location = next((part for part in reversed(meta_parts) if part != salary), "")
+
+        text_parts = [
+            part.strip()
+            for part in raw_data.stripped_strings
+            if part.strip() and part.strip() != title
+        ]
+        if not salary:
+            salary = next((part for part in text_parts if _SALARY.search(part)), "")
+        if not location:
+            location = next((part for part in text_parts if _CITY.search(part)), "")
+
+        posted_el = raw_data.find("span", title="Thời gian cập nhật")
+        posted = posted_el.get_text(" ", strip=True) if posted_el else ""
+        if not posted:
+            posted = next((part for part in text_parts if _AGO.search(part)), "")
+
         return RawJob(
             title=title,
             company=company,

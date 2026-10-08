@@ -158,21 +158,12 @@ def aws_status(settings):
 def probe_sources(keyword: str):
     import time
 
-    from lambdas.scraper_handler import (
-        CareerLinkScraper,
-        CareerVietScraper,
-        ChototScraper,
-        ITviecScraper,
-        JoobleScraper,
-        TimViec365Scraper,
-        ViecLam24hScraper,
-        YBoxScraper,
-    )
     from src.etl.transformer import Transformer
     from src.matcher.search import rank_jobs
+    from src.scrapers.registry import available_sources
 
-    def probe(cls):
-        scraper = cls()
+    def probe(spec):
+        scraper = spec.factory()
         scraper.deadline_at = time.monotonic() + 50
         try:
             raw = scraper.scrape_safe(keyword, max_pages=1)
@@ -181,19 +172,10 @@ def probe_sources(keyword: str):
         finally:
             scraper.session.close()
 
-    classes = [
-        CareerLinkScraper,
-        ViecLam24hScraper,
-        CareerVietScraper,
-        ITviecScraper,
-        TimViec365Scraper,
-        YBoxScraper,
-        ChototScraper,
-        JoobleScraper,
-    ]
+    specs = available_sources()
     summary, jobs = {}, []
     with ThreadPoolExecutor(max_workers=4) as pool:
-        for source, source_jobs, error in pool.map(probe, classes):
+        for source, source_jobs, error in pool.map(probe, specs):
             summary[source] = {
                 "raw_jobs": len(source_jobs),
                 "relevant_jobs": len(rank_jobs(source_jobs, keyword, limit=None)),

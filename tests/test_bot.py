@@ -139,6 +139,7 @@ def test_normal_search_uses_fresh_web_results_without_old_database(
 ):
     bot = TelegramBot()
     bot.settings.you_search_enabled = True
+    bot.settings.live_search_enabled = False
     web_job = make_job(
         job_id="web-job",
         company="New Web Employer",
@@ -169,6 +170,7 @@ def test_empty_web_search_does_not_restore_stale_database_jobs(
 ):
     bot = TelegramBot()
     bot.settings.you_search_enabled = True
+    bot.settings.live_search_enabled = False
     monkeypatch.setattr(bot, "_search_web", Mock(return_value=[]))
     database_search = Mock(return_value=[make_job()])
     monkeypatch.setattr(bot.db_loader, "search_jobs", database_search)
@@ -204,3 +206,92 @@ def test_persistent_update_claim_blocks_retry_in_new_container(database, monkeyp
     monkeypatch.setattr(second, "_handle_search", second_search)
     second.handle_webhook(body)
     assert second_search.call_count == 0
+
+
+def test_search_without_provider_merges_live_boards_and_database(
+    database, make_job, monkeypatch
+):
+    bot = TelegramBot()
+    bot.settings.you_search_enabled = False
+    bot.settings.live_search_enabled = True
+    live_job = make_job(
+        job_id="live:1",
+        title="Data Engineer",
+        company="Live Employer",
+        source="Live · JobsGO",
+        source_url="https://jobsgo.vn/viec-lam/de-1.html",
+        is_live_listing=True,
+    )
+    weak_live_job = make_job(
+        job_id="live:2",
+        title="Business Analyst (data)",
+        company="Other Employer",
+        source="Live · CareerViet",
+        source_url="https://careerviet.vn/2",
+        description="data engineer background welcome",
+    )
+    database_job = make_job(job_id="db-1", title="Senior Data Engineer", company="DB Employer")
+    monkeypatch.setattr(
+        "src.web_search.live_boards.search_live_job_boards",
+        Mock(return_value=[live_job, weak_live_job]),
+    )
+    monkeypatch.setattr(bot.db_loader, "search_jobs", Mock(return_value=[database_job]))
+    save = Mock()
+    monkeypatch.setattr(bot, "_save_search", save)
+    monkeypatch.setattr(bot, "_handle_more", Mock())
+    monkeypatch.setattr(bot, "send_message", Mock(return_value={"message_id": 12}))
+
+    bot._handle_search("123", "data engineer | HCM")
+
+    titles = [job["title"] for job in save.call_args.args[1]]
+    # Exact hits from both the live board and the database come before the weak live hit.
+    assert titles[:2] == ["Data Engineer", "Senior Data Engineer"]
+    assert titles[2] == "Business Analyst (data)"
+    assert "web mới trước" in save.call_args.args[2]
+    bot.db_loader.search_jobs.assert_called_once()
+
+
+def test_search_survives_live_board_failure(database, make_job, monkeypatch):
+    bot = TelegramBot()
+    bot.settings.you_search_enabled = False
+    bot.settings.live_search_enabled = True
+    monkeypatch.setattr(
+        "src.web_search.live_boards.search_live_job_boards",
+        Mock(side_effect=RuntimeError("boom")),
+    )
+    monkeypatch.setattr(bot.db_loader, "search_jobs", Mock(return_value=[make_job()]))
+    save = Mock()
+    monkeypatch.setattr(bot, "_save_search", save)
+    monkeypatch.setattr(bot, "_handle_more", Mock())
+    monkeypatch.setattr(bot, "send_message", Mock(return_value={"message_id": 13}))
+
+    bot._handle_search("123", "data engineer")
+
+    assert [job["title"] for job in save.call_args.args[1]] == ["Data Engineer"]
+    assert "web mới trước" not in save.call_args.args[2]
+
+
+def test_provider_search_still_reads_live_boards_in_parallel(database, make_job, monkeypatch):
+    bot = TelegramBot()
+    bot.settings.you_search_enabled = True
+    bot.settings.live_search_enabled = True
+    web_job = make_job(job_id="web-1", company="Web Co", source="Web · TopCV",
+                       source_url="https://topcv.vn/1", is_web_result=True)
+    live_job = make_job(job_id="live:1", company="Live Co", source="Live · VietnamWorks",
+                        source_url="https://www.vietnamworks.com/1", is_live_listing=True)
+    search_web = Mock(return_value=[web_job])
+    monkeypatch.setattr(bot, "_search_web", search_web)
+    monkeypatch.setattr(
+        "src.web_search.live_boards.search_live_job_boards", Mock(return_value=[live_job])
+    )
+    monkeypatch.setattr(bot.db_loader, "search_jobs", Mock(return_value=[make_job()]))
+    save = Mock()
+    monkeypatch.setattr(bot, "_save_search", save)
+    monkeypatch.setattr(bot, "_handle_more", Mock())
+    monkeypatch.setattr(bot, "send_message", Mock(return_value={"message_id": 14}))
+
+    bot._handle_search("123", "data engineer | HCM")
+
+    assert search_web.call_args.kwargs["include_live"] is False
+    assert {job["company"] for job in save.call_args.args[1]} == {"Web Co", "Live Co"}
+    bot.db_loader.search_jobs.assert_not_called()

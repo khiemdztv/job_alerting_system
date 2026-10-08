@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     you_search_count: int = Field(default=25, ge=1, le=100)
     you_search_timeout_seconds: float = Field(default=8.0, ge=2.0, le=15.0)
     you_search_freshness: str = Field(default="week")
+    # Interactive multi-board search: query every registered live board in parallel
+    # on each /search and merge with the database snapshot (and You.com when enabled).
+    live_search_enabled: bool = Field(default=True)
+    live_search_timeout_seconds: float = Field(default=6.0, ge=2.0, le=15.0)
+    live_search_max_sources: int = Field(default=12, ge=1, le=20)
+    live_search_cache_seconds: int = Field(default=300, ge=0, le=3600)
+    live_search_min_results: int = Field(
+        default=5, ge=0, le=50,
+        description="Below this many provider results, /web also reads live boards",
+    )
     scrape_delay_seconds: float = Field(default=2.0, description="Delay between requests")
     scrape_max_pages: int = Field(default=5, description="Max pages per source per run")
     user_agent: str = Field(
