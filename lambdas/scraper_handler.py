@@ -253,7 +253,14 @@ def _scrape_source(scraper, keywords, settings, deadline):
             _push_to_sqs(valid, settings)
             count += len(valid)
         completed += 1
-    status = ScrapeStatus.OK if count else (ScrapeStatus.ERROR if errors else ScrapeStatus.EMPTY)
+    if count:
+        status = ScrapeStatus.OK
+    elif errors and all(error.startswith("HTTP") for error in errors):
+        status = ScrapeStatus.BLOCKED  # e.g. HTTP403 from the Lambda IP range
+    elif errors:
+        status = ScrapeStatus.ERROR
+    else:
+        status = ScrapeStatus.EMPTY
     record_health(ScrapeResult(
         source=scraper.source.value, keyword=",".join(keywords[:3]),
         status=status, job_count=count, error=",".join(sorted(set(errors))),

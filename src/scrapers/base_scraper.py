@@ -34,6 +34,10 @@ _USER_AGENT_POOL = [
 ]
 
 
+# Responses that mean the site refused us (anti-bot, rate limit), not a parser bug.
+BLOCKED_STATUSES = {403, 429, 503}
+
+
 class BaseScraper(ABC):
     """Abstract base class for all job scrapers.
 
@@ -149,8 +153,17 @@ class BaseScraper(ABC):
             response.raise_for_status()
             return response
         except requests.RequestException as exc:
-            self.last_error = type(exc).__name__
+            self.last_error = self._error_label(exc)
             raise
+
+    @staticmethod
+    def _error_label(exc: requests.RequestException) -> str:
+        """Name the failure so health reports can tell "blocked" from "broken"."""
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if status in BLOCKED_STATUSES:
+            return f"HTTP{status}"
+        return type(exc).__name__
 
     def _post(self, url: str, json_data: Optional[dict] = None, **kwargs) -> requests.Response:
         """Make a rate-limited POST request.
@@ -174,7 +187,7 @@ class BaseScraper(ABC):
             response.raise_for_status()
             return response
         except requests.RequestException as exc:
-            self.last_error = type(exc).__name__
+            self.last_error = self._error_label(exc)
             raise
 
     @abstractmethod
