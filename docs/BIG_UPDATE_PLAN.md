@@ -409,3 +409,12 @@ Cần người dùng chốt: (1) có chi tiền proxy/VPS không và mức trầ
 **Quyết định đạo đức**: hai scraper cũ (JobsGO, VietnamWorks) từng giả User-Agent Googlebot để qua Cloudflare. Đã gỡ; dự án không giả mạo crawler. TimViec365 và JobOKO chỉ dùng URL được robots.txt cho phép.
 
 **Chưa làm / còn lại của P1**: adapter ATS (Greenhouse/Lever/Ashby), Himalayas/Remotive, external runner GitHub Actions, đo lại từ IP AWS, Glints khi có đường hợp lệ.
+
+### 30/10/2026 — Chuyển hạ tầng sang tài khoản AWS mới và deploy v2
+
+- Tài khoản mới `132058735660` (ap-southeast-1): tạo S3 `vieclambot-data-lake-132058735660`, DynamoDB `vieclambot-jobs`/`vieclambot-users`, SQS `vieclambot-raw-jobs` (+ DLQ), IAM role `job-alert-lambda-role` (quyền giới hạn theo tài nguyên), 4 Lambda, API Gateway `vieclambot-api`, 2 lịch EventBridge, Secrets Manager `vieclambot/you-api-key`.
+- Bảng người dùng của tài khoản cũ (7 hồ sơ, 14 đăng ký, 2.329 bản ghi đã gửi) đã sao chép sang bảng mới nên alert không gửi lặp.
+- Webhook Telegram trỏ sang `https://44qmvs1898.execute-api.ap-southeast-1.amazonaws.com/prod/`; `getWebhookInfo` không lỗi, pending 0.
+- Kiểm chứng trên AWS: matcher `dry_run` 200; một `/search kế toán | HCM` thử (chat không tồn tại) hoàn tất trong 15,5s, live search gộp 238/261 tin từ 15 board. Từ IP AWS: JobsGO và TimViec365 trả 403, vieclam.gov.vn timeout kết nối; các board còn lại trả dữ liệu.
+- Tài khoản cũ `585534524041`: đã tắt 2 lịch EventBridge; code 4 Lambda và cấu hình sao lưu tại `dist/cloud-backup-20261030-old/` (ngoài git). Tài nguyên cũ chưa xoá, chờ chủ dự án xác nhận.
+- Script cài máy mới: `winget install Amazon.AWSCLI` → `aws login --profile vieclambot` (duyệt trên trình duyệt) → `AWS_PROFILE=vieclambot python scripts/setup_aws_resources.py` → `python scripts/deploy_lambdas.py`.
