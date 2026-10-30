@@ -214,6 +214,11 @@ def test_search_without_provider_merges_live_boards_and_database(
     bot = TelegramBot()
     bot.settings.you_search_enabled = False
     bot.settings.live_search_enabled = True
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    # Explicit dates: both are exact hits, so recency decides their order and
+    # the test must not depend on which dict was built a few microseconds later.
     live_job = make_job(
         job_id="live:1",
         title="Data Engineer",
@@ -221,6 +226,7 @@ def test_search_without_provider_merges_live_boards_and_database(
         source="Live · JobsGO",
         source_url="https://jobsgo.vn/viec-lam/de-1.html",
         is_live_listing=True,
+        posted_at=now.isoformat(),
     )
     weak_live_job = make_job(
         job_id="live:2",
@@ -230,7 +236,10 @@ def test_search_without_provider_merges_live_boards_and_database(
         source_url="https://careerviet.vn/2",
         description="data engineer background welcome",
     )
-    database_job = make_job(job_id="db-1", title="Senior Data Engineer", company="DB Employer")
+    database_job = make_job(
+        job_id="db-1", title="Senior Data Engineer", company="DB Employer",
+        posted_at=(now - timedelta(hours=6)).isoformat(),
+    )
     monkeypatch.setattr(
         "src.web_search.live_boards.search_live_job_boards",
         Mock(return_value=[live_job, weak_live_job]),

@@ -1,7 +1,51 @@
 """Bounded HTML job cards: escape text and URLs before sending to Telegram."""
 
+from datetime import datetime, timedelta, timezone
 from html import escape
 from urllib.parse import urlsplit
+
+from src.matcher.search import published_at, timestamp
+
+VN_TZ = timezone(timedelta(hours=7))
+
+
+def _relative_day(moment: datetime, now: datetime) -> str:
+    days = (now.astimezone(VN_TZ).date() - moment.astimezone(VN_TZ).date()).days
+    if days <= 0:
+        return "hôm nay"
+    if days == 1:
+        return "hôm qua"
+    if days < 30:
+        return f"{days} ngày trước"
+    return moment.astimezone(VN_TZ).strftime("%d/%m/%Y")
+
+
+def date_line(job: dict, now: datetime | None = None) -> str:
+    """'🕒 Đăng 2 ngày trước · Hạn nộp 15/11/2026' from whatever dates the board gave.
+
+    Boards that print no posting date fall back to when we first saw the job,
+    labelled as such so the reader knows it is only a lower bound.
+    """
+    now = now or datetime.now(timezone.utc)
+    parts = []
+    posted = timestamp(job.get("posted_at"))
+    if posted:
+        parts.append(f"Đăng {_relative_day(posted, now)}")
+    else:
+        seen = published_at(job, now)
+        if seen:
+            parts.append(f"Thấy {_relative_day(seen, now)}")
+    deadline = timestamp(job.get("expires_at"))
+    if deadline:
+        left = (deadline.astimezone(VN_TZ).date() - now.astimezone(VN_TZ).date()).days
+        label = deadline.astimezone(VN_TZ).strftime("%d/%m/%Y")
+        if left < 0:
+            parts.append(f"Hạn nộp {label} (đã hết hạn)")
+        elif left <= 3:
+            parts.append(f"Hạn nộp {label} (còn {left} ngày)")
+        else:
+            parts.append(f"Hạn nộp {label}")
+    return "🕒 " + " · ".join(parts) + "\n" if parts else ""
 
 
 def clip(value, length: int) -> str:
@@ -27,6 +71,7 @@ def job_card(job: dict, number: int) -> str:
         f"📍 {escaped(clip(job.get('location') or 'Chưa rõ địa điểm', 80), 220)}\n"
         f"💰 {escaped(clip(job.get('salary_raw') or 'Thỏa thuận', 70), 180)}\n"
     )
+    text += escaped(date_line(job), 120)
     url = str(job.get("source_url") or "")
     try:
         valid_url = urlsplit(url).scheme in {"https", "http"} and bool(urlsplit(url).netloc)
