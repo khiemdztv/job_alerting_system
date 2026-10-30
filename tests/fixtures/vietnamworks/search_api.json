@@ -1,0 +1,217 @@
+{
+ "meta": {
+  "code": 200,
+  "message": "Success",
+  "nbHits": 1275,
+  "page": 0,
+  "nbPages": 1,
+  "hitsPerPage": 50,
+  "totalJobsText": "1.000+"
+ },
+ "data": [
+  {
+   "jobId": 2126085,
+   "jobTitle": "Senior Accountant",
+   "jobUrl": "https://www.vietnamworks.com/senior-accountant-1793362677005871394-2126085-jv",
+   "alias": "senior-accountant-1793362677005871394",
+   "companyName": "Công Ty TNHH Ziegler Logistics Việt Nam",
+   "workingLocations": [
+    {
+     "workingLocationId": 273583,
+     "addressId": 172073,
+     "cityId": 29,
+     "districtId": 0,
+     "address": "129 DIEN BIEN PHU STREET, GIA DINH WARD, HO CHI MINH CITY, VIETNAM",
+     "cityName": "Ho Chi Minh",
+     "cityNameVI": "Hồ Chí Minh"
+    }
+   ],
+   "prettySalary": "Thương lượng",
+   "salaryMin": 0,
+   "salaryMax": 0,
+   "salaryCurrency": "USD",
+   "isSalaryVisible": false,
+   "approvedOn": "2026-10-30T19:17:57+07:00",
+   "createdOn": "2026-10-30T15:48:48+07:00",
+   "expiredOn": "2026-11-29T23:59:59+07:00",
+   "jobLevelVI": "Nhân viên",
+   "typeWorkingId": 1,
+   "skills": [
+    {
+     "skillId": 888059,
+     "skillWeight": 100,
+     "skillName": "Budget Management"
+    },
+    {
+     "skillId": 721233,
+     "skillWeight": 0,
+     "skillName": "Accounting Standards"
+    },
+    {
+     "skillId": 9039,
+     "skillWeight": 0,
+     "skillName": "Tax Report"
+    },
+    {
+     "skillId": 8499,
+     "skillWeight": 0,
+     "skillName": "Financial Statement"
+    },
+    {
+     "skillId": 121,
+     "skillWeight": 0,
+     "skillName": "Logistics"
+    }
+   ],
+   "industriesV3": [
+    {
+     "industryV3Id": 29,
+     "industryV3Name": "Logistics/Forwarding",
+     "industryV3NameVI": "Hậu cần/Giao nhận"
+    }
+   ],
+   "jobDescription": "<p>- Monitor monthly budgets and compare them with the financial plan of the group.</p><p>- Work directly with internal and external auditors to prepare annual financial reports.</p><p>- Handle invoice issuance and verify input invoices, manage accounts receivable and payable, and ensure timely payments.</p><p>- Track and manage outstanding debts with foreign agents.</p><p>- Oversee social insuran",
+   "jobRequirement": "<p>- Having a diploma in Accounting, Finance, or related fields is beneficial but not mandatory</p><p><strong>- Minimum 5 years of experience in accounting, preferably in logistics, import-export, or supply chain.</strong></p><p>- Proficiency in English (listening, speaking, reading, and writing).</",
+   "yearsOfExperience": 5
+  },
+  {
+   "jobId": 2126226,
+   "jobTitle": "Giám đốc Khối Tài chính Kế toán",
+   "jobUrl": "https://www.vietnamworks.com/giam-doc-khoi-tai-chinh-ke-toan-1793358763229276764-2126226-jv",
+   "alias": "giam-doc-khoi-tai-chinh-ke-toan-1793358763229276764",
+   "companyName": "Oristar Corporation - Công Ty Cổ Phần Oristar",
+   "workingLocations": [
+    {
+     "workingLocationId": 228867,
+     "addressId": 138635,
+     "cityId": 24,
+     "districtId": 0,
+     "address": "Tầng 9, Detech Tower, số 8 Đường Tôn Thất Thuyết, Phường Cầu Giấy, Hà Nội",
+     "cityName": "Ha Noi",
+     "cityNameVI": "Hà Nội"
+    },
+    {
+     "workingLocationId": 228291,
+     "addressId": 138181,
+     "cityId": 29,
+     "districtId": 0,
+     "address": "Lô I-4B-2.2 Đường N3, Khu CNC, Phường Tăng Nhơn Phú, HCM",
+     "cityName": "Ho Chi Minh",
+     "cityNameVI": "Hồ Chí Minh"
+    }
+   ],
+   "prettySalary": "Thương lượng",
+   "salaryMin": 0,
+   "salaryMax": 0,
+   "salaryCurrency": "USD",
+   "isSalaryVisible": false,
+   "approvedOn": "2026-10-30T18:12:43+07:00",
+   "createdOn": "2026-10-30T17:12:32+07:00",
+   "expiredOn": "2026-11-29T23:59:59+07:00",
+   "jobLevelVI": "Giám Đốc và Cấp Cao Hơn",
+   "typeWorkingId": 1,
+   "skills": [
+    {
+     "skillId": 59849,
+     "skillWeight": 0,
+     "skillName": "Hoạch Định Chiến Lược"
+    },
+    {
+     "skillId": 31856,
+     "skillWeight": 0,
+     "skillName": "Quản Trị Tài Chính"
+    },
+    {
+     "skillId": 933199,
+     "skillWeight": 0,
+     "skillName": "Quản Trị Dòng Tiền"
+    },
+    {
+     "skillId": 1652,
+     "skillWeight": 0,
+     "skillName": "Tài Chính"
+    },
+    {
+     "skillId": 355714,
+     "skillWeight": 0,
+     "skillName": "Quản Trị Chi Phí"
+    }
+   ],
+   "industriesV3": [
+    {
+     "industryV3Id": 23,
+     "industryV3Name": "Import/Export",
+     "industryV3NameVI": "Nhập khẩu/Xuất khẩu"
+    }
+   ],
+   "jobDescription": "<p><strong>A. CHẾ ĐỘ LƯƠNG - THƯỞNG</strong></p><p><strong>1. Lương:</strong></p><p><em>- Cấu trúc lương bao gồm:</em></p><p>+ Lương chức danh (lương tham gia BHXH): bằng 60% lương thoả thuận.</p><p>+ Phụ cấp (ăn trưa, xăng xe, điện thoại…).</p><p>+ Phụ cấp ca đêm: Bằng 30% tiền lương ngày làm việc bình thường.</p><p>+ Thưởng hiệu quả công việc.</p><p><em>- Nguyên tắc chi trả...",
+   "jobRequirement": "<p><strong>Yêu cầu: </strong></p><p><strong>1. Giới tính và độ tuổi</strong></p><ul><li>Nam/Nữ tuổi từ 30 – 45 tuổi</li></ul><p><strong>2. Trình độ và kinh nghiệm</strong></p><ul><li>Tốt nghiệp Đại học trở lên chuyên ngành Tài chính, Kế toán, Kiểm toán hoặc các chuyên ngành liên quan.</li><li>Ưu tiê",
+   "yearsOfExperience": 0
+  },
+  {
+   "jobId": 2126349,
+   "jobTitle": "Nhân Viên Kế Toán Kho",
+   "jobUrl": "https://www.vietnamworks.com/nhan-vien-ke-toan-kho-1793360081462909867-2126349-jv",
+   "alias": "nhan-vien-ke-toan-kho-1793360081462909867",
+   "companyName": "Công ty Cổ Phần Công Nghệ Phú Thành",
+   "workingLocations": [
+    {
+     "workingLocationId": 222143,
+     "addressId": 133681,
+     "cityId": 24,
+     "districtId": 0,
+     "address": "Số 115A, đường Phan Trọng Tuệ, Xã Đại Thanh, TP Hà Nội",
+     "cityName": "Ha Noi",
+     "cityNameVI": "Hà Nội"
+    }
+   ],
+   "prettySalary": "17tr-25tr ₫/tháng",
+   "salaryMin": 17000000,
+   "salaryMax": 25000000,
+   "salaryCurrency": "VND",
+   "isSalaryVisible": true,
+   "approvedOn": "2026-10-30T18:34:41+07:00",
+   "createdOn": "2026-10-30T18:34:27+07:00",
+   "expiredOn": "2026-11-29T23:59:59+07:00",
+   "jobLevelVI": "Nhân viên",
+   "typeWorkingId": 1,
+   "skills": [
+    {
+     "skillId": 785884,
+     "skillWeight": 100,
+     "skillName": "Quản Lý Đề Xuất"
+    },
+    {
+     "skillId": 778205,
+     "skillWeight": 100,
+     "skillName": "Hệ Thống Quản Lý Kho"
+    },
+    {
+     "skillId": 123473,
+     "skillWeight": 100,
+     "skillName": "Kiểm Kê Kho Hàng"
+    },
+    {
+     "skillId": 19179,
+     "skillWeight": 100,
+     "skillName": "Lập Báo Cáo"
+    },
+    {
+     "skillId": 1010645,
+     "skillWeight": 100,
+     "skillName": "Làm việc nhóm"
+    }
+   ],
+   "industriesV3": [
+    {
+     "industryV3Id": 11,
+     "industryV3Name": "Building Materials",
+     "industryV3NameVI": "Vật liệu xây dựng"
+    }
+   ],
+   "jobDescription": "<p>- Quản lý xuất, nhập, tồn số lượng hàng hóa trong kho hàng ngày</p><p>- Thực hiện kiểm soát số lượng hàng hóa xuất/ nhập kho theo phiếu xuất/ nhập hàng, hóa đơn.</p><p>- Nhập dữ liệu, kiểm tra đối chiếu hàng hóa trên phần mềm quản lý &amp; thực tế.</p><p>- Kiểm kê kho hàng và...",
+   "jobRequirement": "<p>- Kinh nghiệm: 02 năm trở lên, sử dụng thành thạo phần mềm kho</p><p>- Tốt nghiệp cao đẳng/ đại học khối kinh tế, thương mại</p><p>- Kỹ năng sử dụng thành thạo phần mềm kho;</p><p>- Ưu tiên những ứng viên có kinh nghiệm làm về kho vật liệu xây dựng, kinh nghiệm 2 năm trở...",
+   "yearsOfExperience": 2
+  }
+ ]
+}

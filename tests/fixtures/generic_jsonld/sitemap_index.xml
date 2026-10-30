@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://jobs.example.vn/sitemaps/blog.xml</loc>
+    <lastmod>2026-10-30T07:00:00+07:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://jobs.example.vn/sitemaps/jobs-1.xml</loc>
+    <lastmod>2026-10-28T00:05:25+07:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://jobs.example.vn/sitemaps/jobs-2.xml.gz</loc>
+    <lastmod>2026-10-30T00:05:26+07:00</lastmod>
+  </sitemap>
+</sitemapindex>

@@ -15,7 +15,7 @@ from src.common.logger import get_logger
 from src.config import get_settings
 from src.etl.loader import DynamoDBLoader
 from src.matcher.keyword_matcher import KeywordMatcher
-from src.matcher.search import identity
+from src.matcher.search import ALERT_MIN_SCORE, identity
 
 logger = get_logger(__name__)
 
@@ -121,6 +121,8 @@ def run_alerts(event, context):
                     location=sub.location_filter,
                     salary_min=sub.salary_min_filter,
                     since=since,
+                    # Alerts only send postings whose title names the occupation.
+                    min_score=ALERT_MIN_SCORE,
                 )
                 pending = [job for job in matched if identity(job) not in seen]
                 summary["total_matches"] += len(pending)

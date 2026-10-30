@@ -3,8 +3,9 @@ Setup AWS resources (DynamoDB tables, S3 bucket, SQS queue) in the user's AWS ac
 """
 from __future__ import annotations
 
-import sys
 import os
+import sys
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -12,6 +13,7 @@ from botocore.exceptions import ClientError
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import get_settings
+
 
 def setup_resources():
     settings = get_settings()
@@ -51,7 +53,7 @@ def setup_resources():
 
     # DynamoDB Setup
     dynamodb = boto3.client("dynamodb", region_name=region)
-    
+
     # 1. jobs table
     jobs_table = settings.dynamodb_jobs_table
     print(f"Setting up DynamoDB Table: {jobs_table}...")
@@ -112,20 +114,20 @@ def setup_resources():
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        
+
         new_lines = []
         for line in lines:
             if line.startswith("VIECLAMBOT_S3_DATA_LAKE_BUCKET="):
                 new_lines.append(f"VIECLAMBOT_S3_DATA_LAKE_BUCKET={bucket_name}\n")
             else:
                 new_lines.append(line)
-        
+
         with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
         print("Updated .env file with the unique S3 bucket name.")
 
     print("\nAWS resources setup is complete! Let's wait a few seconds for DynamoDB tables to become ACTIVE.")
-    
+
     # Wait for tables to exist
     waiter = dynamodb.get_waiter("table_exists")
     try:

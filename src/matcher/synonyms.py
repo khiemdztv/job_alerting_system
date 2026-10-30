@@ -145,7 +145,7 @@ _MATCH_GROUPS = [
     ["đầu bếp", "chef", "cook"], ["du lịch", "tourism"],
     ["ngân hàng", "bank", "banking"], ["bảo hiểm", "insurance"],
     ["business analyst", "ba", "phân tích nghiệp vụ", "phân tích kinh doanh"],
-    ["data engineer", "kỹ sư dữ liệu", "ki su du lieu"],
+    ["data engineer", "kỹ sư dữ liệu", "ki su du lieu", "de"],
     ["data analyst", "phân tích dữ liệu", "data analysis"],
     ["data scientist", "khoa học dữ liệu"],
     ["qa", "quality assurance"], ["qc", "quality control"],

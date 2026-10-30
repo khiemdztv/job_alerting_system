@@ -15,7 +15,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, computed_field, field_validator
 
-
 # ── Enums ────────────────────────────────────────────────────────
 
 
@@ -32,6 +31,20 @@ class JobSource(str, Enum):
     JOBSGO = "jobsgo"
     TOPDEV = "topdev"
     VIETNAMWORKS = "vietnamworks"
+    TOPCV = "topcv"
+    # Added for the v2 coverage expansion (see docs/BIG_UPDATE_PLAN.md).
+    LINKEDIN = "linkedin"
+    INDEED = "indeed"
+    GLASSDOOR = "glassdoor"
+    GLINTS = "glints"
+    CAREERJET = "careerjet"
+    JOB123 = "123job"
+    JOBOKO = "joboko"
+    VIECOI = "viecoi"
+    JOBHOPIN = "jobhopin"
+    ONE900 = "1900"
+    VIECLAM_GOV = "vieclam_gov"
+    GENERIC = "generic"
 
 
 class JobType(str, Enum):
@@ -61,6 +74,7 @@ class RawJob(BaseModel):
     source: JobSource
     source_url: str = ""
     posted_at_raw: str = ""
+    valid_through_raw: str = ""  # application deadline as printed by the board
     scraped_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("title", "company", mode="before")

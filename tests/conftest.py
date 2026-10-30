@@ -13,6 +13,11 @@ os.environ.update(
         "VIECLAMBOT_TELEGRAM_BOT_TOKEN": "test-token",
         "VIECLAMBOT_JOOBLE_API_KEY": "",
         "VIECLAMBOT_ADMIN_CHAT_ID": "",
+        # Tests must not pick up a developer's real .env (keys, You.com toggle).
+        "VIECLAMBOT_YOU_SEARCH_ENABLED": "false",
+        "VIECLAMBOT_YOU_API_KEY": "",
+        "VIECLAMBOT_YOU_API_KEY_SECRET_ARN": "",
+        "VIECLAMBOT_S3_DATA_LAKE_BUCKET": "vieclambot-data-lake-test",
     }
 )
 

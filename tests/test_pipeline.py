@@ -37,30 +37,34 @@ def test_source_url_identity_does_not_merge_different_posts():
     assert first.computed_job_id == tracked.computed_job_id
 
 
-def test_timviec365_uses_site_search_route(monkeypatch):
+def test_timviec365_uses_category_listing_not_disallowed_search(monkeypatch):
+    # /tim-kiem is disallowed by robots.txt and takes ~7.5 s; keywords map to the
+    # closest category listing instead ("data engineer" -> IT phần mềm, c13).
     from src.scrapers.timviec365_scraper import TimViec365Scraper
 
     scraper = TimViec365Scraper()
     get = Mock(return_value=Mock(text="<html></html>"))
     monkeypatch.setattr(scraper, "_get", get)
     scraper.scrape("data engineer", max_pages=1)
-    get.assert_called_once_with(
-        "https://timviec365.vn/tim-kiem", params={"keyword": "data engineer", "page": 1}
-    )
+    get.assert_called_once_with("https://timviec365.vn/viec-lam-it-phan-mem-c13v0", params=None)
 
 
-def test_timviec365_chooses_title_instead_of_date_link(monkeypatch):
+def test_timviec365_uses_card_age_not_deadline_as_posted_date(monkeypatch):
     from src.scrapers.timviec365_scraper import TimViec365Scraper
 
     scraper = TimViec365Scraper()
     html = (
-        '<div><a href="/data-engineer-p123.html">3 ngày</a>'
-        '<h2><a href="/data-engineer-p123.html">Data Engineer</a></h2></div>'
+        '<div class="item_vl"><a class="logo_user_th" href="/data-engineer-p123.html">'
+        '<span class="box_time_off">3 ngày</span></a>'
+        '<h2><a class="title_new" href="/data-engineer-p123.html" title="Data Engineer">'
+        "Data Engineer</a></h2>"
+        '<span class="job_time">30/11/2026</span></div>'
     )
     monkeypatch.setattr(scraper, "_get", Mock(return_value=Mock(text=html)))
     jobs = scraper.scrape("data engineer", max_pages=1)
     assert len(jobs) == 1
     assert jobs[0].title == "Data Engineer"
+    assert jobs[0].posted_at_raw == "3 ngày trước"
 
 
 def test_sqs_retries_only_rejected_entries(monkeypatch):
@@ -88,15 +92,26 @@ def test_sqs_persistent_failure_propagates(monkeypatch):
 def test_failed_batch_flush_is_not_counted_as_success():
     loader = DynamoDBLoader()
     table = Mock()
-    table.batch_writer.return_value.__enter__ = Mock(return_value=Mock())
-    table.batch_writer.return_value.__exit__ = Mock(
-        side_effect=ClientError(
-            {"Error": {"Code": "ProvisionedThroughputExceededException"}}, "BatchWriteItem"
-        )
+    table.update_item.side_effect = ClientError(
+        {"Error": {"Code": "ProvisionedThroughputExceededException"}}, "UpdateItem"
     )
     loader._table = table
     with pytest.raises(ClientError):
         loader.load_batch([Job(title="Accountant", source=JobSource.CAREERLINK)])
+
+
+def test_upsert_keeps_first_seen_at_and_refreshes_other_fields(database):
+    loader = DynamoDBLoader()
+    job = Job(title="Accountant", company="ACME", source=JobSource.CAREERLINK,
+              source_url="https://example.com/jobs/1")
+    job.generate_id()
+    loader.load_batch([job])
+    first = loader.table.get_item(Key={"job_id": job.job_id})["Item"]
+    job.company = "ACME Updated"
+    loader.load_batch([job])
+    second = loader.table.get_item(Key={"job_id": job.job_id})["Item"]
+    assert second["company"] == "ACME Updated"
+    assert second["first_seen_at"] == first["first_seen_at"]
 
 
 def test_etl_bad_record_fails_for_retry():
@@ -195,3 +210,145 @@ def test_blocked_source_is_reported_as_blocked_not_error(monkeypatch):
     assert summary["status"] == "blocked"
     assert recorded["status"].value == "blocked"
     assert scraper.source is JobSource.CAREERLINK
+
+
+def test_scheduled_run_reads_newest_listings_before_keywords(monkeypatch):
+    import time
+
+    from src.common.models import JobSource, RawJob
+    from src.scrapers.base_scraper import BaseScraper
+
+    class LatestBoard(BaseScraper):
+        supports_latest = True
+
+        def __init__(self):
+            super().__init__(source=JobSource.CAREERVIET)
+            self.calls = []
+
+        def scrape(self, keyword, max_pages=None):
+            self.calls.append(("keyword", keyword))
+            return []
+
+        def scrape_latest(self, max_pages=None):
+            self.calls.append(("latest", max_pages))
+            return [RawJob(title="Kế toán", company="ACME", source=self.source,
+                           source_url="https://careerviet.vn/jobs/1")]
+
+        def parse_job(self, raw_data):
+            return None
+
+    pushed = Mock()
+    monkeypatch.setattr("lambdas.scraper_handler._push_to_sqs", pushed)
+    monkeypatch.setattr("lambdas.scraper_handler._save_raw_to_s3", Mock())
+    monkeypatch.setattr("lambdas.scraper_handler.record_health", Mock())
+    scraper = LatestBoard()
+    settings = get_settings()
+
+    summary = _scrape_source(scraper, ["python"], settings, time.monotonic() + 60)
+
+    assert scraper.calls[0] == ("latest", settings.scrape_latest_pages)
+    assert scraper.calls[1] == ("keyword", "python")
+    assert summary["valid"] == 1 and summary["status"] == "ok"
+    assert pushed.call_count == 1
+
+
+def test_layout_change_is_reported_distinctly(monkeypatch):
+    import time
+
+    from src.scrapers.base_scraper import LAYOUT_CHANGED
+    from src.scrapers.careerlink_scraper import CareerLinkScraper
+
+    scraper = CareerLinkScraper()
+    monkeypatch.setattr("lambdas.scraper_handler.record_health", Mock())
+    monkeypatch.setattr(scraper, "scrape_latest", Mock(return_value=[]))
+    monkeypatch.setattr(scraper, "scrape_safe", Mock(side_effect=lambda *a, **k: (
+        scraper.mark_layout_changed(), [])[1]))
+
+    summary = _scrape_source(scraper, ["kế toán"], get_settings(), time.monotonic() + 60)
+
+    assert scraper.last_error == LAYOUT_CHANGED
+    assert summary["status"] == "layout_changed"
+
+
+def test_scrape_safe_forwards_location_only_when_supported():
+    from src.common.models import JobSource
+    from src.scrapers.base_scraper import BaseScraper
+
+    class WithLocation(BaseScraper):
+        def __init__(self):
+            super().__init__(source=JobSource.CAREERVIET)
+            self.seen = None
+
+        def scrape(self, keyword, max_pages=None, location=None):
+            self.seen = location
+            return []
+
+        def parse_job(self, raw_data):
+            return None
+
+    class WithoutLocation(BaseScraper):
+        def __init__(self):
+            super().__init__(source=JobSource.CAREERVIET)
+
+        def scrape(self, keyword, max_pages=None):
+            return []
+
+        def parse_job(self, raw_data):
+            return None
+
+    first = WithLocation()
+    first.scrape_safe("kế toán", 1, location="Hà Nội")
+    assert first.supports_location and first.seen == "Hà Nội"
+    second = WithoutLocation()
+    assert not second.supports_location
+    assert second.scrape_safe("kế toán", 1, location="Hà Nội") == []
+
+
+def test_board_job_type_label_beats_description_wording():
+    from src.common.models import JobSource, JobType, RawJob
+    from src.etl.transformer import Transformer
+
+    raw = RawJob(title="Marketing Intern", company="ACME", source=JobSource.YBOX,
+                 job_type_raw="internship", description="Full time, 3 months",
+                 source_url="https://ybox.vn/1")
+    assert Transformer().transform(raw).job_type is JobType.INTERNSHIP
+
+
+def test_jsonld_fallback_runs_when_dedicated_parser_finds_nothing(monkeypatch):
+    import time
+
+    from src.common.models import JobSource, RawJob
+    from src.scrapers.careerviet_scraper import CareerVietScraper
+    from src.scrapers.generic_jsonld_scraper import KNOWN_SITES, GenericJsonLdScraper
+
+    scraper = CareerVietScraper()
+    monkeypatch.setattr(scraper, "scrape_safe", Mock(side_effect=lambda *a, **k: (
+        scraper.mark_layout_changed(), [])[1]))
+    site = next(site for site in KNOWN_SITES if site.source is JobSource.CAREERVIET)
+    fallback = GenericJsonLdScraper(site)
+    job = RawJob(title="Kế toán", company="ACME", source=JobSource.CAREERVIET,
+                 source_url="https://careerviet.vn/vi/tim-viec-lam/ke-toan.35A1.html")
+    monkeypatch.setattr(fallback, "scrape_latest", Mock(return_value=[job]))
+    monkeypatch.setattr(fallback, "scrape_safe", Mock(return_value=[]))
+    scraper.fallback = fallback
+    pushed = Mock()
+    monkeypatch.setattr("lambdas.scraper_handler._push_to_sqs", pushed)
+    monkeypatch.setattr("lambdas.scraper_handler._save_raw_to_s3", Mock())
+    monkeypatch.setattr("lambdas.scraper_handler.record_health", Mock())
+
+    summary = _scrape_source(scraper, ["kế toán"], get_settings(), time.monotonic() + 300)
+
+    assert summary["fallback_used"] is True
+    assert summary["valid"] == 1 and summary["status"] == "ok"
+    assert pushed.call_count == 1
+
+
+def test_supports_latest_is_detected_from_override():
+    from src.scrapers.job123_scraper import Job123Scraper
+    from src.scrapers.linkedin_scraper import LinkedInScraper
+    from src.scrapers.vietnamworks_scraper import VietnamWorksScraper
+
+    assert Job123Scraper().supports_latest is True
+    assert LinkedInScraper().supports_latest is False
+    # Whatever the dedicated parser does, the flag is a plain bool.
+    assert isinstance(VietnamWorksScraper().supports_latest, bool)

@@ -69,8 +69,8 @@ class KeywordMatcher:
         3. Optional: location filter
         4. Optional: salary filter
         """
-        from src.matcher.search import relevance, matches_filters
-        return bool(relevance(job, keyword)) and matches_filters(
+        from src.matcher.search import ALERT_MIN_SCORE, matches_filters, relevance
+        return relevance(job, keyword) >= ALERT_MIN_SCORE and matches_filters(
             job, subscription.location_filter, subscription.salary_min_filter,
             max_age_days=self.settings.max_job_age_days,
         )
@@ -205,6 +205,9 @@ def format_notification(
 
     footer = ""
     if remaining > 0:
-        footer = f"\n_\\.\\.\\.và {remaining} việc khác\\. Dùng /search {_escape_md(keyword)} để xem tất cả\\._"
+        footer = (
+            f"\n_\\.\\.\\.và {remaining} việc khác\\. "
+            f"Dùng /search {_escape_md(keyword)} để xem tất cả\\._"
+        )
 
     return header + body + footer

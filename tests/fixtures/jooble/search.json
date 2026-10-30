@@ -1,0 +1,23 @@
+{
+  "totalCount": 2,
+  "jobs": [
+    {
+      "title": "Senior <b>Data</b> Engineer",
+      "location": "Ho Chi Minh City",
+      "snippet": "&nbsp;... build <b>data</b> pipelines on AWS &amp; Airflow ...&nbsp;",
+      "salary": "$2,000 - $3,500",
+      "source": "careerviet.vn",
+      "type": "Full-time",
+      "link": "https://jooble.org/desc/-5126345578887437318?ckey=data+engineer&rgn=-1&pos=1",
+      "company": "ABC Corp",
+      "updated": "2026-10-29T08:15:30.1230000",
+      "id": -5126345578887437318
+    },
+    {
+      "title": "",
+      "location": "Ha Noi",
+      "snippet": "no title, must be skipped",
+      "link": "https://jooble.org/desc/1"
+    }
+  ]
+}

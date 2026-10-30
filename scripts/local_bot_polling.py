@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+
 import requests
 
 # Add project root to path
@@ -16,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lambdas.bot_webhook_handler import handler as bot_handler
 from src.config import get_settings
+
 
 def run_polling():
     settings = get_settings()
@@ -49,26 +51,26 @@ def run_polling():
             url = f"https://api.telegram.org/bot{token}/getUpdates"
             params = {"offset": offset, "timeout": 20}
             response = requests.get(url, params=params, timeout=25)
-            
+
             if response.status_code != 200:
                 print(f"Telegram API Error ({response.status_code}): {response.text}")
                 time.sleep(2)
                 continue
-            
+
             data = response.json()
             updates = data.get("result", [])
-            
+
             for update in updates:
                 update_id = update["update_id"]
                 offset = update_id + 1
-                
+
                 print(f"\n[Received Update] ID: {update_id}")
                 message = update.get("message", {})
                 if message:
                     sender = message.get("from", {}).get("username", "unknown")
                     text = message.get("text", "")
                     print(f"  From: @{sender} | Message: {text}")
-                
+
                 # Mock the API Gateway event format and trigger the handler
                 event = {"body": json.dumps(update)}
                 try:
@@ -76,7 +78,7 @@ def run_polling():
                     print(f"  Handler execution response status code: {result.get('statusCode')}")
                 except Exception as ex:
                     print(f"  Handler failed: {ex}")
-                    
+
         except KeyboardInterrupt:
             print("\nStopping polling...")
             break

@@ -78,6 +78,7 @@ def _scrape_board(
     internship_only: bool,
     deadline_at: float | None,
     settings: Settings,
+    location: str | None = None,
 ) -> tuple[SourceSpec, list, str, int]:
     started = time.monotonic()
     scraper = spec.factory()
@@ -88,7 +89,11 @@ def _scrape_board(
     if spec.source is JobSource.TOPDEV:
         scraper.internship_only = internship_only
     try:
-        jobs = scraper.scrape(query, 1)
+        if location and scraper.supports_location:
+            # Let the board filter by city itself; fewer irrelevant cards per page.
+            jobs = scraper.scrape(query, 1, location=location)
+        else:
+            jobs = scraper.scrape(query, 1)
         error = scraper.last_error
     except Exception as exc:  # one slow or changed board must not hide the others
         jobs, error = [], type(exc).__name__
@@ -145,6 +150,7 @@ def search_live_job_boards(
             internship_only=internship_only,
             deadline_at=deadline_at,
             settings=settings,
+            location=location,
         )
         futures[future] = spec
 

@@ -1,0 +1,247 @@
+{
+ "data": {
+  "jobSearch": {
+   "pageInfo": {
+    "nextCursor": "AGQAAYEAZAAAAAAAAAAAAAAAAmaeeO0AngECASBkCQDCbq8U/TVqu39pr9oF1W6y7a1b7Sr4B6i4C2Kg/ZOAiA+1Ekcqq46TVCwzzZL6v5LYSLI+sU1Qup+vWoQ5Yt91OPVMuHq3JW+5E2NUV6Rm96p5UkxILnmdKeLs7Ci/kdle/Cp2OI4Kbmie1S0xxeTjrFX+jbg5dLUwewfLhRYxTWZtzK860xgLvcpzR4RHHWOHB/hgcqy1AAA="
+   },
+   "results": [
+    {
+     "job": {
+      "key": "f8b0a5cbfaa915ad",
+      "title": "Nhân Viên Hồ Sơ Thanh Quyết Toán (Dự án Kết cấu thép)",
+      "sourceEmployerName": "JobsGO Recruit",
+      "dateOnIndeed": 1793367822008,
+      "description": {
+       "html": "<div><p><b>M&ocirc; tả c&ocirc;ng việc:</b></p>\n(Mức lương: 15 - 25 triệu VNĐ)<ul>\n<li>Quản l&yacute; kế hoạch dự &aacute;n v&agrave; kiểm so&aacute;t qu&aacute; tr&igrave;nh vận h&agrave;nh c&aacute;c dự &aacute;n được ph&acirc;n c&ocirc;ng phụ tr&aacute;ch.</li>\n<li>Phụ tr&aacute;ch c&ocirc;ng việc ho&agrave;n thiện hồ sơ thanh quyết to&aacute;n với thầu ch&iacute;nh &ndash; đối với c&aacute;c dự &aacute;n được ph&acirc;n c&ocirc;ng (bao gồm b&oacute;c t&aacute;ch khối lượng, lập ho&agrave;n thiện hồ sơ, bảo vệ khối lượng v&agrave; c&ocirc;ng t&aacute;c li&ecirc;n quan kh&aacute;c theo y&ecirc;u cầu c&ocirc;ng việc...).</li>\n<li>B&aacute;o c&aacute;o định kỳ hoặc đột xuất về t&igrave;nh h&"
+      },
+      "location": {
+       "countryCode": "VN",
+       "admin1Code": "HN",
+       "city": "Hà Nội"
+      },
+      "compensation": {
+       "estimated": null,
+       "baseSalary": {
+        "unitOfWork": "MONTH",
+        "range": {
+         "min": 15000000.0,
+         "max": 25000000.0
+        }
+       },
+       "currencyCode": "VND"
+      },
+      "attributes": [
+       {
+        "key": "CF3CP"
+       }
+      ],
+      "employer": {
+       "relativeCompanyPageUrl": "/cmp/Jobsgo-Recruit",
+       "name": "jobsgo recruit",
+       "ugcStats": {
+        "ratings": {
+         "overallRating": {
+          "value": 0,
+          "count": 0
+         }
+        }
+       },
+       "dossier": {
+        "employerDetails": {
+         "addresses": [],
+         "industry": null,
+         "employeesLocalizedLabel": null,
+         "revenueLocalizedLabel": null,
+         "briefDescription": null
+        },
+        "images": {
+         "squareLogoUrl": null
+        },
+        "links": {
+         "corporateWebsite": null
+        }
+       }
+      },
+      "recruit": {
+       "viewJobUrl": "https://jobsgo.vn/viec-lam/nhan-vien-ho-so-thanh-quyet-toan-du-an-ket-cau-thep-29582693398.html"
+      }
+     }
+    },
+    {
+     "job": {
+      "key": "2d30e2d28cbf2801",
+      "title": "Kế Toán Tổng Hợp - Lương Upto 15 Triệu Tại Hồ Chí Minh",
+      "sourceEmployerName": "Công Ty Cổ Phần Công Nghệ Chấn Việt",
+      "dateOnIndeed": 1793367821935,
+      "description": {
+       "html": "<div><p><b>M&ocirc; tả c&ocirc;ng việc:</b></p>\n(Mức lương: 12 - 15 triệu VNĐ)<ul><li>\nKiểm tra, so&aacute;t x&eacute;t số liệu v&agrave; c&ocirc;ng việc của kế to&aacute;n vi&ecirc;n, hạch to&aacute;n c&aacute;c nghiệp vụ kế to&aacute;n ph&aacute;t sinh, ph&acirc;n bổ chi ph&iacute;, c&aacute;c b&uacute;t to&aacute;n kết chuyển.</li><li>\nLập B&aacute;o c&aacute;o t&agrave;i ch&iacute;nh theo quy định, B&aacute;o c&aacute;o quản trị theo y&ecirc;u cầu của Trưởng bộ phận, Ban l&atilde;nh đạo.</li><li>\nLập b&aacute;o c&aacute;o thuế GTGT, TNCN, NTNN, TTĐB, TNDN,&hellip; định kỳ v&agrave; b&aacute;o c&aacute;o thống k&ecirc; theo quy định.</li><li>\nCung cấp số liệu, b&aacute;o c&aacute;o t&agra"
+      },
+      "location": {
+       "countryCode": "VN",
+       "admin1Code": "SG",
+       "city": "Thành phố Hồ Chí Minh"
+      },
+      "compensation": {
+       "estimated": null,
+       "baseSalary": {
+        "unitOfWork": "YEAR",
+        "range": {
+         "min": 12000000.0,
+         "max": 15000000.0
+        }
+       },
+       "currencyCode": "VND"
+      },
+      "attributes": [
+       {
+        "key": "CF3CP"
+       }
+      ],
+      "employer": {
+       "relativeCompanyPageUrl": "/cmp/C%C3%B4ng-Ty-C%E1%BB%95-Ph%E1%BA%A7n-C%C3%B4ng-Ngh%E1%BB%87-Ch%E1%BA%A5n-Vi%E1%BB%87t",
+       "name": "Công Ty Cổ Phần Công Nghệ Chấn Việt",
+       "ugcStats": {
+        "ratings": {
+         "overallRating": {
+          "value": 0,
+          "count": 0
+         }
+        }
+       },
+       "dossier": {
+        "employerDetails": {
+         "addresses": [],
+         "industry": null,
+         "employeesLocalizedLabel": null,
+         "revenueLocalizedLabel": null,
+         "briefDescription": null
+        },
+        "images": {
+         "squareLogoUrl": null
+        },
+        "links": {
+         "corporateWebsite": null
+        }
+       }
+      },
+      "recruit": {
+       "viewJobUrl": "https://jobsgo.vn/viec-lam/ke-toan-tong-hop-luong-upto-15-trieu-tai-ho-chi-minh-29582462555.html"
+      }
+     }
+    },
+    {
+     "job": {
+      "key": "2d15c96d4b7b7b37",
+      "title": "Trưởng Nhóm Lương Khoán Và KPI",
+      "sourceEmployerName": "Công Ty Cổ Phần Đầu Tư Bảo Lai",
+      "dateOnIndeed": 1793367821005,
+      "description": {
+       "html": "<div><p><b>M&ocirc; tả c&ocirc;ng việc:</b></p>\n(Mức lương: Thỏa thuận)<div>\n<p>\nM&ocirc; tả c&ocirc;ng việc</p>\n</div>\n<div><p>1. X&acirc;y dựng v&agrave; kiểm so&aacute;t lương kho&aacute;n</p>\n<ul>\n<li>X&acirc;y dựng, r&agrave; so&aacute;t định mức lao động, đơn gi&aacute; kho&aacute;n v&agrave; phương &aacute;n ph&acirc;n chia quỹ lương.</li>\n<li>Kiểm tra bảng lương kho&aacute;n, ph&acirc;n t&iacute;ch ch&ecirc;nh lệch v&agrave; đề xuất điều chỉnh.</li>\n</ul>\n<p>2. Ph&acirc;n t&iacute;ch năng suất v&agrave; chi ph&iacute; nh&acirc;n c&ocirc;ng</p>\n<ul>\n<li>Theo d&otilde;i, ph&acirc;n t&iacute;ch năng suất lao động, giờ c&ocirc;ng v&agrave; chi ph&iacute; nh&acirc;n c&ocirc;ng.</li>\n<li>Đ"
+      },
+      "location": {
+       "countryCode": "VN",
+       "admin1Code": "HN",
+       "city": "Hà Nội"
+      },
+      "compensation": {
+       "estimated": null,
+       "baseSalary": null,
+       "currencyCode": null
+      },
+      "attributes": [
+       {
+        "key": "CF3CP"
+       }
+      ],
+      "employer": {
+       "relativeCompanyPageUrl": "/cmp/C%C3%B4ng-Ty-C%E1%BB%95-Ph%E1%BA%A7n-%C4%90%E1%BA%A7u-T%C6%B0-B%E1%BA%A3o-Lai",
+       "name": "Công Ty Cổ Phần Đầu Tư Bảo Lai",
+       "ugcStats": {
+        "ratings": {
+         "overallRating": {
+          "value": 0,
+          "count": 0
+         }
+        }
+       },
+       "dossier": {
+        "employerDetails": {
+         "addresses": [],
+         "industry": null,
+         "employeesLocalizedLabel": null,
+         "revenueLocalizedLabel": null,
+         "briefDescription": null
+        },
+        "images": {
+         "squareLogoUrl": null
+        },
+        "links": {
+         "corporateWebsite": null
+        }
+       }
+      },
+      "recruit": {
+       "viewJobUrl": "https://jobsgo.vn/viec-lam/truong-nhom-luong-khoan-va-kpi-29582150238.html"
+      }
+     }
+    },
+    {
+     "job": {
+      "key": "bca7ca06340b305c",
+      "title": "Kỹ Sư AI - Quận 1",
+      "sourceEmployerName": "Công Ty TNHH N.stage",
+      "dateOnIndeed": 1793367811440,
+      "description": {
+       "html": "<div><p><b>M&ocirc; tả c&ocirc;ng việc:</b></p>\n(Mức lương: Thỏa thuận)<ul><li>\nL&ecirc;n &yacute; tưởng v&agrave; triển khai c&aacute;c c&ocirc;ng cụ n&acirc;ng cao hiệu quả c&ocirc;ng việc bằng AI tạo sinh, API AI v&agrave; c&aacute;c c&ocirc;ng nghệ li&ecirc;n quan.</li><li>\nThiết kế, ph&aacute;t triển v&agrave; vận h&agrave;nh hệ thống nội bộ, dịch vụ web v&agrave; ứng dụng.</li><li>\nTự động h&oacute;a c&aacute;c c&ocirc;ng việc li&ecirc;n quan đến kinh doanh, quản l&yacute; kh&aacute;ch h&agrave;ng v&agrave; ph&acirc;n t&iacute;ch dữ liệu.</li><li>\nX&aacute;c định y&ecirc;u cầu hệ thống, phối hợp với c&aacute;c c&ocirc;ng ty ph&aacute;t triển phần mềm b&ecirc;n ngo&agrave;i, quản l&yacu"
+      },
+      "location": {
+       "countryCode": "VN",
+       "admin1Code": "SG",
+       "city": "Thành phố Hồ Chí Minh"
+      },
+      "compensation": {
+       "estimated": null,
+       "baseSalary": null,
+       "currencyCode": null
+      },
+      "attributes": [
+       {
+        "key": "CF3CP"
+       }
+      ],
+      "employer": {
+       "relativeCompanyPageUrl": "/cmp/C%C3%B4ng-Ty-Tnhh-N.stage",
+       "name": "Công Ty TNHH N.stage",
+       "ugcStats": {
+        "ratings": {
+         "overallRating": {
+          "value": 0,
+          "count": 0
+         }
+        }
+       },
+       "dossier": {
+        "employerDetails": {
+         "addresses": [],
+         "industry": null,
+         "employeesLocalizedLabel": null,
+         "revenueLocalizedLabel": null,
+         "briefDescription": null
+        },
+        "images": {
+         "squareLogoUrl": null
+        },
+        "links": {
+         "corporateWebsite": null
+        }
+       }
+      },
+      "recruit": {
+       "viewJobUrl": "https://jobsgo.vn/viec-lam/ky-su-ai-quan-1-29572739991.html"
+      }
+     }
+    }
+   ]
+  }
+ }
+}

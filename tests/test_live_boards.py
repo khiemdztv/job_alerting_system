@@ -206,3 +206,28 @@ def test_live_mode_uses_short_timeouts_and_no_retries():
     scraper.session.get = sent
     scraper._get("https://www.careerlink.vn/vieclam/list", timeout=30)
     assert sent.call_args.kwargs["timeout"] == 4.0
+
+
+def test_live_search_forwards_location_to_boards_that_filter_by_city(monkeypatch):
+    from src.common.models import JobSource
+    from src.scrapers.base_scraper import BaseScraper
+    from src.web_search import live_boards
+
+    seen = {}
+
+    class CityAware(BaseScraper):
+        def __init__(self):
+            super().__init__(source=JobSource.CAREERLINK)
+
+        def scrape(self, keyword, max_pages=None, location=None):
+            seen["location"] = location
+            return []
+
+        def parse_job(self, raw_data):
+            return None
+
+    scraper = CityAware()
+    monkeypatch.setattr(live_boards, "live_sources", lambda settings: [spec(JobSource.CAREERLINK, scraper)])
+    live_boards.clear_live_cache()
+    live_boards.search_live_job_boards("kế toán", location="Hà Nội", limit=5)
+    assert seen["location"] == "Hà Nội"

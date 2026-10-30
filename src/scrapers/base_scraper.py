@@ -7,6 +7,7 @@ ensuring a consistent interface and shared functionality.
 
 from __future__ import annotations
 
+import inspect
 import random
 import time
 from abc import ABC, abstractmethod
@@ -23,19 +24,23 @@ logger = get_logger(__name__)
 
 # Pool of realistic User-Agent strings for anti-blocking rotation
 _USER_AGENT_POOL = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",  # noqa: E501
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",  # noqa: E501
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",  # noqa: E501
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",  # noqa: E501
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:126.0) Gecko/20100101 Firefox/126.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",  # noqa: E501
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",  # noqa: E501
 ]
 
 
 # Responses that mean the site refused us (anti-bot, rate limit), not a parser bug.
 BLOCKED_STATUSES = {403, 429, 503}
+
+# `last_error` value a scraper sets when the site answered 200 but no job card
+# matched its parser: the board changed its layout, nothing was blocked.
+LAYOUT_CHANGED = "layout_changed"
 
 
 class BaseScraper(ABC):
@@ -183,6 +188,8 @@ class BaseScraper(ABC):
         )
         try:
             timeout = kwargs.pop("timeout", self.request_timeout)
+            if self.live_mode:
+                timeout = min(float(timeout), self.request_timeout)
             response = self.session.post(url, json=json_data, timeout=timeout, **kwargs)
             response.raise_for_status()
             return response
@@ -194,6 +201,9 @@ class BaseScraper(ABC):
     def scrape(self, keyword: str, max_pages: Optional[int] = None) -> list[RawJob]:
         """Scrape job listings for a given keyword.
 
+        Subclasses may accept an extra ``location: str | None = None`` keyword
+        argument; ``scrape_safe`` only forwards it when the signature allows.
+
         Args:
             keyword: Job search keyword (e.g., "data engineer").
             max_pages: Maximum number of pages to scrape.
@@ -202,6 +212,35 @@ class BaseScraper(ABC):
             List of RawJob objects.
         """
         ...
+
+    def scrape_latest(self, max_pages: Optional[int] = None) -> list[RawJob]:
+        """Newest listings without a keyword (boards with a browse-by-date page).
+
+        The default says the board has no such page; override and set
+        ``supports_latest = True`` where one exists so the scheduled run can
+        collect every new posting instead of only keyword hits.
+        """
+        return []
+
+    @property
+    def supports_latest(self) -> bool:
+        """True when the subclass overrides ``scrape_latest`` (or sets the flag)."""
+        return type(self).scrape_latest is not BaseScraper.scrape_latest
+
+    fallback: Optional["BaseScraper"] = None
+    """Selector-free scraper (JSON-LD) tried when this one returns nothing."""
+
+    @property
+    def supports_location(self) -> bool:
+        """Whether ``scrape`` accepts a ``location`` keyword argument."""
+        try:
+            return "location" in inspect.signature(self.scrape).parameters
+        except (TypeError, ValueError):
+            return False
+
+    def mark_layout_changed(self) -> None:
+        """Record that a 200 page produced no job cards (parser no longer matches)."""
+        self.last_error = LAYOUT_CHANGED
 
     @abstractmethod
     def parse_job(self, raw_data: dict | object) -> Optional[RawJob]:
@@ -215,12 +254,19 @@ class BaseScraper(ABC):
         """
         ...
 
-    def scrape_safe(self, keyword: str, max_pages: Optional[int] = None) -> list[RawJob]:
+    def scrape_safe(
+        self,
+        keyword: str,
+        max_pages: Optional[int] = None,
+        location: Optional[str] = None,
+    ) -> list[RawJob]:
         """Scrape with error handling — never raises, returns empty on failure.
 
         Args:
             keyword: Job search keyword.
             max_pages: Maximum pages to scrape.
+            location: Optional location filter, forwarded only to scrapers
+                whose ``scrape`` accepts it.
 
         Returns:
             List of RawJob objects (empty on error).
@@ -228,7 +274,10 @@ class BaseScraper(ABC):
         start_time = time.time()
         self.last_error = ""
         try:
-            jobs = self.scrape(keyword, max_pages)
+            if location and self.supports_location:
+                jobs = self.scrape(keyword, max_pages, location=location)
+            else:
+                jobs = self.scrape(keyword, max_pages)
             duration_ms = int((time.time() - start_time) * 1000)
             logger.info(
                 f"Scraped {len(jobs)} jobs from {self.source.value} for '{keyword}'",

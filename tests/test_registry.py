@@ -12,7 +12,8 @@ from src.scrapers.registry import (
 def test_every_job_source_is_registered_once():
     registered = [spec.source for spec in SOURCES]
     assert len(registered) == len(set(registered))
-    assert set(registered) == set(JobSource)
+    # New JobSource values may exist before their adapter is registered (v2 rollout).
+    assert set(registered) <= set(JobSource)
 
 
 def test_scheduled_run_includes_the_major_boards():
@@ -20,7 +21,7 @@ def test_scheduled_run_includes_the_major_boards():
     sources = {scraper.source for scraper in batch_scrapers(settings)}
     assert {
         JobSource.VIETNAMWORKS,
-        JobSource.JOBSGO,
+        JobSource.INDEED,
         JobSource.TOPDEV,
         JobSource.CAREERVIET,
         JobSource.VIECLAM24H,
@@ -46,10 +47,43 @@ def test_live_sources_are_capped_and_ordered_by_priority():
         JobSource.CAREERVIET,
         JobSource.VIECLAM24H,
     ]
-    assert len(live_sources(Settings(jooble_api_key=None))) == len(SOURCES) - 1
+    # Jooble needs a key; TopCV and LinkedIn are batch-only.
+    batch_only = sum(1 for spec in SOURCES if not spec.live)
+    settings = Settings(jooble_api_key=None)
+    expected = min(len(SOURCES) - 1 - batch_only, settings.live_search_max_sources)
+    assert len(live_sources(settings)) == expected
+
+
+def test_topcv_runs_in_batch_only_when_you_search_is_enabled():
+    off = {s.source for s in batch_scrapers(Settings(jooble_api_key=None))}
+    on = {
+        s.source
+        for s in batch_scrapers(Settings(jooble_api_key=None, you_search_enabled=True))
+    }
+    assert JobSource.TOPCV not in off
+    assert JobSource.TOPCV in on
+    live = live_sources(Settings(jooble_api_key=None, you_search_enabled=True))
+    assert JobSource.TOPCV not in {spec.source for spec in live}
 
 
 def test_source_label_is_human_readable():
     assert source_label("vieclam24h") == "ViecLam24h"
     assert source_label("chotot") == "Việc Làm Tốt"
     assert source_label("unknown-board") == "unknown-board"
+
+
+def test_batch_scrapers_carry_jsonld_fallback_where_verified():
+    from src.scrapers.generic_jsonld_scraper import GenericJsonLdScraper
+    from src.scrapers.registry import batch_scrapers
+
+    by_source = {s.source: s for s in batch_scrapers(Settings(jooble_api_key=None))}
+    assert isinstance(by_source[JobSource.CAREERVIET].fallback, GenericJsonLdScraper)
+    assert by_source[JobSource.CAREERVIET].fallback.source is JobSource.CAREERVIET
+    assert by_source[JobSource.VIETNAMWORKS].fallback is None
+    assert isinstance(by_source[JobSource.VIECOI], GenericJsonLdScraper)
+
+
+def test_jobsgo_does_not_impersonate_a_search_engine_crawler():
+    assert "Googlebot" not in open(
+        "src/scrapers/jobsgo_scraper.py", encoding="utf-8"
+    ).read().split("class JobsGoScraper")[1]

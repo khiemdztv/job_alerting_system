@@ -4,16 +4,18 @@ Packages code, downloads Linux dependencies, updates Lambda functions,
 and configures triggers (EventBridge, SQS, Function URL for Telegram webhook).
 """
 import os
-import sys
 import shutil
-import zipfile
 import subprocess
+import sys
+import zipfile
+
 import boto3
 from botocore.exceptions import ClientError
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import get_settings
+
 
 def build_package(zip_path, temp_dir):
     """Download Linux dependencies and build ZIP archive."""
@@ -53,7 +55,7 @@ def build_package(zip_path, temp_dir):
         os.remove(zip_path)
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
+
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         # Add dependency packages
         for root, dirs, files in os.walk(temp_dir):
@@ -110,7 +112,7 @@ def deploy_lambdas():
     role_arn = f"arn:aws:iam::{account_id}:role/job-alert-lambda-role"
     zip_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "deployment.zip")
     temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist", "package")
-    
+
     os.makedirs(os.path.dirname(zip_path), exist_ok=True)
 
     # Step 1: Package
@@ -175,16 +177,33 @@ def deploy_lambdas():
         "VIECLAMBOT_SEARCH_RESULT_LIMIT": str(settings.search_result_limit),
         "VIECLAMBOT_MAX_SUBSCRIPTIONS": str(settings.max_subscriptions),
     }
+    env_vars.update({
+        "VIECLAMBOT_INTERACTIVE_SEARCH_MAX_AGE_DAYS": str(settings.interactive_search_max_age_days),
+        "VIECLAMBOT_SCRAPE_LATEST_PAGES": str(settings.scrape_latest_pages),
+        "VIECLAMBOT_LIVE_SEARCH_ENABLED": str(settings.live_search_enabled).lower(),
+        "VIECLAMBOT_LIVE_SEARCH_TIMEOUT_SECONDS": str(settings.live_search_timeout_seconds),
+        "VIECLAMBOT_LIVE_SEARCH_MAX_SOURCES": str(settings.live_search_max_sources),
+        "VIECLAMBOT_LIVE_SEARCH_CACHE_SECONDS": str(settings.live_search_cache_seconds),
+        "VIECLAMBOT_LIVE_SEARCH_MIN_RESULTS": str(settings.live_search_min_results),
+        "VIECLAMBOT_YOU_SEARCH_ENABLED": str(settings.you_search_enabled).lower(),
+        "VIECLAMBOT_YOU_SEARCH_COUNT": str(settings.you_search_count),
+        "VIECLAMBOT_YOU_SEARCH_TIMEOUT_SECONDS": str(settings.you_search_timeout_seconds),
+        "VIECLAMBOT_YOU_SEARCH_FRESHNESS": str(settings.you_search_freshness),
+    })
     if settings.telegram_bot_token:
         env_vars["VIECLAMBOT_TELEGRAM_BOT_TOKEN"] = settings.telegram_bot_token
     if settings.jooble_api_key:
         env_vars["VIECLAMBOT_JOOBLE_API_KEY"] = settings.jooble_api_key
+    if settings.admin_chat_id:
+        env_vars["VIECLAMBOT_ADMIN_CHAT_ID"] = str(settings.admin_chat_id)
+    if settings.you_api_key_secret_arn:
+        env_vars["VIECLAMBOT_YOU_API_KEY_SECRET_ARN"] = settings.you_api_key_secret_arn
 
     deployed_arns = {}
 
     for name, conf in lambda_functions.items():
         print(f"\nDeploying function: {name}...")
-        
+
         # Check if already exists
         exists = False
         try:
@@ -204,7 +223,7 @@ def deploy_lambdas():
             # Wait for update
             waiter = lambda_client.get_waiter("function_updated")
             waiter.wait(FunctionName=name)
-            
+
             # Update Config
             res = lambda_client.update_function_configuration(
                 FunctionName=name,
@@ -232,7 +251,7 @@ def deploy_lambdas():
                 Environment={"Variables": env_vars}
             )
             deployed_arns[name] = res["FunctionArn"]
-            
+
         print(f"Successfully deployed: {name}")
 
     # --- SQS Trigger Event Mapping for ETL ---
@@ -243,7 +262,7 @@ def deploy_lambdas():
             FunctionName="vieclambot-etl",
             EventSourceArn=queue_arn
         )["EventSourceMappings"]
-        
+
         if not mappings:
             lambda_client.create_event_source_mapping(
                 EventSourceArn=queue_arn,
@@ -259,7 +278,7 @@ def deploy_lambdas():
 
     # --- EventBridge Rules for Scraper & Matcher ---
     print("\nSetting up EventBridge Rules...")
-    
+
     # 1. Scraper rule (Runs every 6 hours)
     try:
         scraper_rule = events_client.put_rule(
@@ -272,7 +291,7 @@ def deploy_lambdas():
             Rule="vieclambot-scraper-schedule",
             Targets=[{"Id": "scraper-target", "Arn": deployed_arns["vieclambot-scraper"]}]
         )
-        
+
         # Add permission
         try:
             lambda_client.add_permission(
@@ -301,7 +320,7 @@ def deploy_lambdas():
             Rule="vieclambot-matcher-schedule",
             Targets=[{"Id": "matcher-target", "Arn": deployed_arns["vieclambot-matcher"]}]
         )
-        
+
         # Add permission
         try:
             lambda_client.add_permission(
@@ -322,7 +341,7 @@ def deploy_lambdas():
     print("\nConfiguring Webhook API Gateway...")
     try:
         apg_client = boto3.client("apigateway", region_name=region)
-        
+
         # Check if API already exists
         api_id = None
         apis = apg_client.get_rest_apis()["items"]

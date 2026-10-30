@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 import unicodedata
 
-
 # Map of accented Vietnamese characters to their base Latin equivalents.
 _ACCENT_MAP: dict[str, str] = {}
 _CHAR_GROUPS = {
@@ -20,7 +19,7 @@ _CHAR_GROUPS = {
     "o": "oòóỏõọôồốổỗộơờớởỡợ",
     "u": "uùúủũụưừứửữự",
     "y": "yỳýỷỹỵ",
-    "d": "dđ",
+    "d": "dđð",  # ð (U+00F0) is how some boards (Indeed) write Đ in lowercase
 }
 for base, chars in _CHAR_GROUPS.items():
     for char in chars:
@@ -29,13 +28,34 @@ for base, chars in _CHAR_GROUPS.items():
 _TRANSLATION_TABLE = str.maketrans(_ACCENT_MAP)
 
 
+# Latin "Ð/ð" (U+00D0/U+00F0) look identical to Vietnamese "Đ/đ" (U+0110/U+0111).
+_ETH_TABLE = str.maketrans({"Ð": "Đ", "ð": "đ"})
+
+
+def normalize_vn_text(text: str) -> str:
+    """Lowercase NFC text with diacritics kept and whitespace collapsed.
+
+    ``fold_vn_text(normalize_vn_text(x)) == clean_vn_text(x)`` and folding never
+    changes the length, so a span found in the folded string is the same span in
+    the accented one.  Search uses that to tell "ít" from "it" or "điện" from "diện".
+    """
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFC", str(text).translate(_ETH_TABLE).lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def fold_vn_text(text: str) -> str:
+    """Strip Vietnamese diacritics from already normalized text (1:1 per character)."""
+    return text.translate(_TRANSLATION_TABLE)
+
+
 def clean_vn_text(text: str) -> str:
     """Normalize Vietnamese text for search matching.
 
     - NFC unicode normalization
     - Lowercase
     - Strip diacritics (accents)
-    - Treat 'y' and 'i' as equivalent
     - Collapse whitespace
 
     Args:
@@ -52,19 +72,11 @@ def clean_vn_text(text: str) -> str:
         >>> clean_vn_text("Công Nghệ Thông Tin")
         'cong nghe thong tin'
     """
-    if not text:
-        return ""
-
-    text = unicodedata.normalize("NFC", text.lower())
-
-    cleaned = text.translate(_TRANSLATION_TABLE)
     # NOTE: Previously had `cleaned.replace("y", "i")` for Vietnamese y/i
     # equivalence (kĩ vs kỹ), but this breaks ALL English words containing 'y'
     # (analyst→analist, python→pithon, system→sistem).
     # Vietnamese accented y-variants (ỳýỷỹỵ) are already handled by _ACCENT_MAP.
-    # Collapse whitespace
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
+    return fold_vn_text(normalize_vn_text(text))
 
 
 def slugify_vn(text: str) -> str:

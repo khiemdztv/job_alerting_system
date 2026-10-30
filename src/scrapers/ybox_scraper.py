@@ -1,13 +1,21 @@
 """
 Ybox.vn scraper.
-Matches the site's client-side search logic by parsing window.__INITIAL_ADS__ and filtering locally.
+
+YBox server-renders the whole current job list (about 42 posts, ~300 KB) into
+``window.__INITIAL_ADS__`` and ignores ``keyword``/``page`` query parameters
+(verified: the payload is identical with or without them, ``/tim-kiem?q=`` too),
+so there is no cheaper URL; the keyword is applied locally like the site does.
+Postings are mostly internships and part-time roles for students.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import unicodedata
+from datetime import datetime
 from typing import Optional
+
 from bs4 import BeautifulSoup
 
 from src.common.logger import get_logger
@@ -19,125 +27,171 @@ logger = get_logger(__name__)
 
 BASE_URL = "https://ybox.vn"
 
+_JS_DATE = re.compile(
+    r"^\w{3} (\w{3} \d{1,2} \d{4} \d{2}:\d{2}:\d{2}) GMT([+-]\d{4})"
+)
+_SALARY = re.compile(
+    r"\d[\d.,]*(?:\s*(?:-|–|đến)\s*\d[\d.,]*)?\s*(?:vn[đd]|triệu|tr\b)"
+    r"(?:\s*/\s*(?:tháng|thang))?",
+    re.IGNORECASE,
+)
+
+LOCATION_ALIASES = {
+    "ha noi": ("hn", "ha noi", "hanoi"),
+    "ho chi minh": ("hcm", "ho chi minh", "sai gon", "sg", "tphcm"),
+    "da nang": ("dn", "da nang"),
+}
+
+
+def _fold(text: str) -> str:
+    text = unicodedata.normalize("NFD", text.lower().replace("đ", "d"))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", text)).strip()
+
+
+def _iso_date(value: str) -> str:
+    """Turn JS ``Date.toString()`` text into ISO 8601 so the ETL can parse it."""
+    match = _JS_DATE.match((value or "").strip())
+    if not match:
+        return value or ""
+    try:
+        parsed = datetime.strptime(f"{match.group(1)} {match.group(2)}", "%b %d %Y %H:%M:%S %z")
+    except ValueError:
+        return value
+    return parsed.isoformat()
+
+
+def _job_types(title: str) -> str:
+    low = title.lower()
+    kinds = []
+    if any(k in low for k in ("thực tập", "intern", "sinh viên", "trainee", "fresher")):
+        kinds.append("internship")
+    part_time = ("part-time", "part time", "parttime", "bán thời gian", "cộng tác viên", "ctv")
+    if any(k in low for k in part_time):
+        kinds.append("part-time")
+    if any(k in low for k in ("full-time", "full time", "fulltime", "toàn thời gian")):
+        kinds.append("full-time")
+    return ", ".join(kinds)
+
 
 class YBoxScraper(BaseScraper):
-    """Scraper for YBOX (ybox.vn).
-
-    Fetches search results by downloading the search HTML page
-    and parsing the `window.__INITIAL_ADS__` variable.
-    """
+    """Scraper for YBOX (ybox.vn)."""
 
     SEARCH_URL = f"{BASE_URL}/tuyen-dung-viec-lam-tk-c1"
+    supports_latest = True
 
     def __init__(self):
         super().__init__(source=JobSource.YBOX)
 
-    def scrape(self, keyword: str, max_pages: Optional[int] = None) -> list[RawJob]:
-        """Scrape YBOX job listings.
+    def _load_posts(self) -> list[dict] | None:
+        """Download the list page and return its posts, or None on layout change."""
+        response = self._get(self.SEARCH_URL)
+        response.encoding = "utf-8"
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        Ybox search returns all ads on a single page, which is filtered client-side.
-        We fetch the page with keyword search parameter to simulate the search,
-        extract INITIAL_ADS JSON data, and filter results locally.
-        """
-        all_jobs: list[RawJob] = []
-
-        params = {
-            "keyword": keyword,
-        }
-
-        try:
-            response = self._get(self.SEARCH_URL, params=params)
-            response.encoding = "utf-8"
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            ads_data = None
-            for script in soup.find_all("script"):
-                if script.string and "window.__INITIAL_ADS__" in script.string:
-                    content = script.string.strip()
-                    # Find start and end indices of the JSON object
-                    start_idx = content.find("{")
-                    end_idx = content.rfind("}")
-                    if start_idx != -1 and end_idx != -1:
-                        try:
-                            ads_data = json.loads(content[start_idx:end_idx+1])
-                            break
-                        except Exception as je:
-                            logger.error(f"Failed to parse Ybox INITIAL_ADS JSON: {je}")
-
-            if not ads_data:
-                logger.warning("Could not find or parse Ybox INITIAL_ADS script tag.")
-                return []
-
-            edges = ads_data.get("Ads", {}).get("edges", [])
-            logger.info(f"Ybox search page returned {len(edges)} ads. Filtering for keyword '{keyword}'...")
-
-            # Token-based matching with synonym expansion (not full-string match)
-            for edge in edges:
-                post = edge.get("post")
-                if not post:
+        for script in soup.find_all("script"):
+            if script.string and "window.__INITIAL_ADS__" in script.string:
+                content = script.string.strip()
+                start_idx = content.find("{")
+                end_idx = content.rfind("}")
+                if start_idx == -1 or end_idx == -1:
                     continue
+                try:
+                    ads_data = json.loads(content[start_idx : end_idx + 1])
+                except ValueError as je:
+                    logger.error(f"Failed to parse Ybox INITIAL_ADS JSON: {je}")
+                    continue
+                edges = (ads_data.get("Ads") or {}).get("edges") or []
+                posts = [e.get("post") for e in edges if e and e.get("post")]
+                return posts or None
+        logger.warning("Could not find or parse Ybox INITIAL_ADS script tag.")
+        return None
 
-                title = post.get("title", "")
-                summary = post.get("summary", "")
-                if relevance({"title": title, "description": summary}, keyword):
-                    job = self.parse_job(post)
-                    if job:
-                        all_jobs.append(job)
+    @staticmethod
+    def _matches_location(job: RawJob, location: str) -> bool:
+        wanted = _fold(location)
+        aliases = next(
+            (a for key, a in LOCATION_ALIASES.items() if wanted == key or wanted in a),
+            (wanted,),
+        )
+        tokens = set(_fold(job.location).split()) | set(_fold(job.title).split())
+        folded = _fold(job.location)
+        # Online / nationwide postings fit any city.
+        if "online" in tokens or ("toan" in tokens and "quoc" in tokens):
+            return True
+        return any(alias in tokens or alias in folded for alias in aliases)
 
-            logger.info(
-                f"YBox: {len(all_jobs)} jobs matched keyword '{keyword}'",
-                extra={"source": self.source.value},
-            )
+    def scrape(
+        self,
+        keyword: str,
+        max_pages: Optional[int] = None,
+        location: str | None = None,
+    ) -> list[RawJob]:
+        """Scrape YBOX job listings, filtering the single list page locally."""
+        posts = self._load_posts()
+        if posts is None:
+            self.mark_layout_changed()
+            return []
+        logger.info(f"Ybox page returned {len(posts)} ads. Filtering for '{keyword}'...")
 
-        except Exception as e:
-            logger.error(f"YBox scraping failed: {e}", exc_info=True)
+        jobs: list[RawJob] = []
+        for post in posts:
+            if not relevance(
+                {"title": post.get("title", ""), "description": post.get("summary", "")},
+                keyword,
+            ):
+                continue
+            job = self.parse_job(post)
+            if job and (not location or self._matches_location(job, location)):
+                jobs.append(job)
+        logger.info(
+            f"YBox: {len(jobs)} jobs matched keyword '{keyword}'",
+            extra={"source": self.source.value},
+        )
+        return jobs
 
-        return all_jobs
+    def scrape_latest(self, max_pages: Optional[int] = None) -> list[RawJob]:
+        """Every post on the list page, newest first."""
+        posts = self._load_posts()
+        if posts is None:
+            self.mark_layout_changed()
+            return []
+        jobs = [job for post in posts if (job := self.parse_job(post))]
+        jobs.sort(key=lambda j: j.posted_at_raw, reverse=True)  # ISO strings sort by time
+        return jobs
 
     def parse_job(self, post: dict) -> Optional[RawJob]:
         """Parse Ybox post dictionary to RawJob."""
         try:
-            title = post.get("title", "").strip()
-            if not title:
-                return None
-
-            slug = post.get("slug", "")
-            if not slug:
+            title = (post.get("title") or "").strip()
+            slug = post.get("slug") or ""
+            if not title or not slug:
                 return None
 
             source_url = f"{BASE_URL}/tuyen-dung/{slug}"
 
-            # Publisher info (company)
             publisher = post.get("publisher") or {}
             company = publisher.get("fullName") or publisher.get("username") or "Ybox Employer"
 
-            # Parse location from title (e.g. "[HCM]...", "[HN]...", "[Đà Nẵng]")
-            # Common pattern is bracketed prefix
+            # Location is the bracketed prefix: "[HCM]", "[HN/Hưng Yên]", "[Online-HCM]".
             location = "Việt Nam"
             loc_match = re.search(r"^\[([^\]]+)\]", title)
             if loc_match:
                 location = loc_match.group(1).strip()
             else:
-                # Fallback: check text for HN or HCM
-                if "hcm" in title.lower() or "hồ chí minh" in title.lower() or "sài gòn" in title.lower():
+                low = title.lower()
+                if "hcm" in low or "hồ chí minh" in low or "sài gòn" in low:
                     location = "Hồ Chí Minh"
-                elif "hn" in title.lower() or "hà nội" in title.lower():
+                elif re.search(r"\bhn\b", low) or "hà nội" in low:
                     location = "Hà Nội"
 
-            # Parse salary from title if specified (e.g. "Thu nhập 10-20 Triệu" or "Mức lương 8-10 triệu")
-            salary = "Thỏa thuận"
-            # Match formats like "10 - 20 Triệu", "10-20tr", "10 triệu", "3-5 Triệu"
-            salary_match = re.search(r"(?:lương|thu nhập)[:\s]*([0-9\s\-\.\,trTriệu]+(?:\+/)?(?:\s*tháng)?)", title, re.IGNORECASE)
+            salary = ""
+            salary_match = _SALARY.search(title)
             if salary_match:
-                salary = salary_match.group(1).strip()
-            else:
-                # Check for "triệu" in title
-                salary_match_2 = re.search(r"([0-9\s\-\.\,tr]+tr(?:iệu)?(?:/tháng)?)", title, re.IGNORECASE)
-                if salary_match_2:
-                    salary = salary_match_2.group(1).strip()
+                salary = salary_match.group(0).strip()
 
-            description = post.get("summary", "").strip()
-            posted_at_raw = post.get("publishedAt", "") or post.get("acceptedAt", "")
+            description = (post.get("summary") or "").strip()
+            posted = post.get("publishedAt") or post.get("acceptedAt") or ""
 
             return RawJob(
                 title=title,
@@ -145,9 +199,10 @@ class YBoxScraper(BaseScraper):
                 location=location,
                 salary_raw=salary,
                 description=description,
+                job_type_raw=_job_types(title),
                 source=JobSource.YBOX,
                 source_url=source_url,
-                posted_at_raw=posted_at_raw,
+                posted_at_raw=_iso_date(posted),
             )
 
         except Exception as e:

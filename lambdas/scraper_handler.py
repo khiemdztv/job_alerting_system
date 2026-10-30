@@ -21,6 +21,7 @@ from src.common.logger import get_logger
 from src.common.scraper_health import ScrapeResult, ScrapeStatus, record_health
 from src.config import get_settings
 from src.data_quality.validators import RawJobValidator
+from src.scrapers.base_scraper import LAYOUT_CHANGED, BaseScraper
 from src.scrapers.registry import batch_scrapers
 
 logger = get_logger(__name__)
@@ -118,9 +119,12 @@ def _get_active_keywords(settings) -> list[str]:
 
     # Select seed keyword group based on hour (rotate every 6h)
     now = datetime.now(timezone.utc)
-    group_idx = int(now.timestamp() // (settings.alert_interval_hours * 3600)) % len(SEED_KEYWORD_GROUPS)
+    cycle = int(now.timestamp() // (settings.alert_interval_hours * 3600))
+    group_idx = cycle % len(SEED_KEYWORD_GROUPS)
     selected_group = SEED_KEYWORD_GROUPS[group_idx]
-    logger.info(f"Using seed keyword group {group_idx + 1}/{len(SEED_KEYWORD_GROUPS)}: {selected_group}")
+    logger.info(
+        f"Using seed keyword group {group_idx + 1}/{len(SEED_KEYWORD_GROUPS)}: {selected_group}"
+    )
 
     try:
         import boto3
@@ -219,7 +223,10 @@ def _save_raw_to_s3(raw_jobs, settings, source_name: str = "all_sources") -> Non
         now = datetime.now(timezone.utc)
 
         data = [job.model_dump(mode="json") for job in raw_jobs]
-        key = f"raw/{source_name}/{now.strftime('%Y/%m/%d')}/raw_{now.strftime('%Y%m%d_%H%M%S')}.json"
+        key = (
+            f"raw/{source_name}/{now.strftime('%Y/%m/%d')}/"
+            f"raw_{now.strftime('%Y%m%d_%H%M%S')}.json"
+        )
 
         s3.put_object(
             Bucket=settings.s3_data_lake_bucket,
@@ -234,29 +241,71 @@ def _save_raw_to_s3(raw_jobs, settings, source_name: str = "all_sources") -> Non
         logger.error(f"S3 save failed: {e}")
 
 
+def _persist(jobs, scraper, validator, settings, errors):
+    """Validate, archive and queue one batch; return how many were accepted."""
+    valid, _ = validator.validate_batch(jobs)
+    if scraper.last_error:
+        errors.append(scraper.last_error)
+    if valid:
+        _save_raw_to_s3(valid, settings, scraper.source.value)
+        _push_to_sqs(valid, settings)
+    return len(valid)
+
+
 def _scrape_source(scraper, keywords, settings, deadline):
     scraper.deadline_at = deadline
     validator = RawJobValidator()
     count, raw_count, errors = 0, 0, []
     started = time.monotonic()
     completed = 0
+    # Boards with a browse-by-date page give every new posting in one pass,
+    # independent of which keywords users happen to subscribe to.
+    if getattr(scraper, "supports_latest", False) is True and settings.scrape_latest_pages > 0:
+        scraper.last_error = ""
+        try:
+            latest = scraper.scrape_latest(max_pages=settings.scrape_latest_pages)
+        except Exception as exc:
+            logger.exception("scrape_latest failed for %s", scraper.source.value)
+            scraper.last_error = scraper.last_error or type(exc).__name__
+            latest = []
+        raw_count += len(latest)
+        count += _persist(latest, scraper, validator, settings, errors)
     for keyword in keywords:
         if time.monotonic() + 25 >= deadline:
             break
         jobs = scraper.scrape_safe(keyword, max_pages=settings.scrape_max_pages)
         raw_count += len(jobs)
-        valid, _ = validator.validate_batch(jobs)
-        if scraper.last_error:
-            errors.append(scraper.last_error)
-        if valid:
-            _save_raw_to_s3(valid, settings, scraper.source.value)
-            _push_to_sqs(valid, settings)
-            count += len(valid)
+        count += _persist(jobs, scraper, validator, settings, errors)
         completed += 1
+    fallback_used = False
+    fallback = getattr(scraper, "fallback", None)
+    if count == 0 and isinstance(fallback, BaseScraper) and time.monotonic() + 60 < deadline:
+        # The dedicated parser found nothing (layout change or empty page):
+        # read the board's sitemap + JSON-LD instead so coverage survives.
+        fallback_used = True
+        fallback.deadline_at = deadline
+        logger.warning("Using JSON-LD fallback for %s", scraper.source.value)
+        try:
+            latest = fallback.scrape_latest(max_pages=settings.scrape_latest_pages)
+            raw_count += len(latest)
+            count += _persist(latest, fallback, validator, settings, errors)
+            for keyword in keywords[:3]:
+                if time.monotonic() + 25 >= deadline:
+                    break
+                jobs = fallback.scrape_safe(keyword, max_pages=1)
+                raw_count += len(jobs)
+                count += _persist(jobs, fallback, validator, settings, errors)
+        except Exception as exc:
+            logger.exception("JSON-LD fallback failed for %s", scraper.source.value)
+            errors.append(type(exc).__name__)
+        finally:
+            fallback.session.close()
     if count:
         status = ScrapeStatus.OK
     elif errors and all(error.startswith("HTTP") for error in errors):
         status = ScrapeStatus.BLOCKED  # e.g. HTTP403 from the Lambda IP range
+    elif errors and all(error == LAYOUT_CHANGED for error in errors):
+        status = ScrapeStatus.LAYOUT_CHANGED  # 200 pages, parser matched nothing
     elif errors:
         status = ScrapeStatus.ERROR
     else:
@@ -268,4 +317,5 @@ def _scrape_source(scraper, keywords, settings, deadline):
     ), settings)
     scraper.session.close()
     return {"total_scraped": raw_count, "valid": count, "status": status.value,
-            "keywords_completed": completed, "keywords_deferred": len(keywords) - completed}
+            "keywords_completed": completed, "keywords_deferred": len(keywords) - completed,
+            "fallback_used": fallback_used}

@@ -713,7 +713,7 @@ class TelegramBot:
                               ExpressionAttributeValues={":offset": next_offset})
 
     def _handle_myjobs(self, chat_id: str) -> None:
-        from src.matcher.search import identity
+        from src.matcher.search import ALERT_MIN_SCORE, identity
         try:
             kwargs = {
                 "KeyConditionExpression": "user_id = :uid AND begins_with(sk, :prefix)",
@@ -735,6 +735,8 @@ class TelegramBot:
                     limit=self.settings.search_result_limit,
                     location=item.get("location_filter"),
                     salary_min=item.get("salary_min_filter"),
+                    # Same floor as alerts: the title must name the occupation.
+                    min_score=ALERT_MIN_SCORE,
                 )
                 for job in results:
                     if identity(job) not in seen:
@@ -761,7 +763,7 @@ class TelegramBot:
     def _handle_search(self, chat_id: str, keyword: str) -> None:
         from datetime import datetime, timedelta, timezone
 
-        from src.matcher.search import concepts, parse_search
+        from src.matcher.search import INTERACTIVE_MIN_SCORE, concepts, parse_search
         query, location = parse_search(keyword)
         if not concepts(query):
             self.send_message(
@@ -801,6 +803,8 @@ class TelegramBot:
                     posted_since=datetime.now(timezone.utc)
                     - timedelta(days=self.settings.interactive_search_max_age_days),
                     deadline_at=self._request_deadline_at,
+                    # Description-only mentions are listed after title hits.
+                    min_score=INTERACTIVE_MIN_SCORE,
                 )
             live_jobs = self._collect_live_search(live_future)
             jobs = self._merge_ranked_jobs(query, location, live_jobs, web_jobs, database_jobs)

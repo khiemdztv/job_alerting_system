@@ -13,7 +13,7 @@ import boto3
 import requests
 
 from src.common.logger import get_logger
-from src.common.text_utils import clean_vn_text
+from src.common.text_utils import clean_vn_text, normalize_vn_text
 from src.config import Settings, get_settings
 from src.matcher.search import identity, normalize_location, query_variants, rank_jobs_multi
 
@@ -310,13 +310,14 @@ class YouSearchClient:
         location: str | None = None,
         limit: int = 20,
         deadline_at: float | None = None,
+        domains: list[str] | None = None,
     ) -> list[dict]:
         preferred_payload: dict = {
             "query": _query_for_web(query, location),
             "count": min(100, max(10, min(self.settings.you_search_count, limit * 2))),
             "country": "VN",
             "safesearch": "moderate",
-            "include_domains": VIETNAM_JOB_DOMAINS,
+            "include_domains": domains or VIETNAM_JOB_DOMAINS,
         }
         candidates = self._request(
             preferred_payload,
@@ -402,7 +403,7 @@ class YouSearchClient:
                 "location": _location_from_text(f"{title} {description}", location, url),
                 "salary_raw": "",
                 "description": description[:2000],
-                "search_blob": clean_vn_text(f"{title} {description}"),
+                "search_blob": normalize_vn_text(f"{title} {description}"),
                 "source": f"Web · {domain}"[:30],
                 "source_url": url,
                 "posted_at": result.get("page_age") or "",

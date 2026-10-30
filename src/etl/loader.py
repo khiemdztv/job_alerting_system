@@ -35,6 +35,7 @@ SEARCH_FIELDS = (
     "source",
     "source_url",
     "scraped_at",
+    "first_seen_at",
     "posted_at",
     "expires_at",
     "ttl",
@@ -79,7 +80,7 @@ class DynamoDBLoader:
             ttl_seconds = settings.max_job_age_days * 24 * 3600
             item["ttl"] = int(datetime.now(timezone.utc).timestamp()) + ttl_seconds
 
-            self.table.put_item(Item=item)
+            self._upsert_item(item, first_seen_at=datetime.now(timezone.utc).isoformat())
             self.__dict__.pop("_search_items", None)
             self.__dict__.pop("_search_items_loaded_at", None)
             self.__dict__.pop("_search_items_complete", None)
@@ -106,28 +107,48 @@ class DynamoDBLoader:
         self.__dict__.pop("_search_items_loaded_at", None)
         self.__dict__.pop("_search_items_complete", None)
         loaded = 0
+        now = datetime.now(timezone.utc)
 
-        try:
-            with self.table.batch_writer(overwrite_by_pkeys=["job_id"]) as batch:
-                for job in jobs:
-                    try:
-                        item = job.to_dynamo_item()
-                        item["ttl"] = int(datetime.now(timezone.utc).timestamp()) + ttl_seconds
-                        batch.put_item(Item=item)
-                        loaded += 1
-                    except Exception as e:
-                        logger.warning(f"Skipping job '{job.title}': {e}")
+        # Upsert item by item so a re-scraped posting keeps its original
+        # ``first_seen_at``; a plain batch put would overwrite it with the
+        # latest crawl time and make every old job look new again.
+        for job in jobs:
+            try:
+                item = job.to_dynamo_item()
+                item["ttl"] = int(now.timestamp()) + ttl_seconds
+                self._upsert_item(item, first_seen_at=now.isoformat())
+                loaded += 1
+            except ClientError as e:
+                logger.error(f"DynamoDB upsert failed for job '{job.title}': {e}")
+                raise
+            except Exception as e:
+                logger.warning(f"Skipping job '{job.title}': {e}")
 
-            logger.info(
-                f"Loaded {loaded}/{len(jobs)} jobs to DynamoDB",
-                extra={"job_count": loaded},
-            )
-
-        except ClientError as e:
-            logger.error(f"DynamoDB batch write failed: {e}")
-            raise
-
+        logger.info(
+            f"Loaded {loaded}/{len(jobs)} jobs to DynamoDB",
+            extra={"job_count": loaded},
+        )
         return loaded
+
+    def _upsert_item(self, item: dict, *, first_seen_at: str) -> None:
+        """SET every attribute, but only initialise ``first_seen_at`` once."""
+        key = {"job_id": item["job_id"]}
+        names, values, sets = {}, {}, []
+        for index, (field, value) in enumerate(item.items()):
+            if field == "job_id":
+                continue
+            names[f"#a{index}"] = field
+            values[f":v{index}"] = value
+            sets.append(f"#a{index} = :v{index}")
+        names["#first_seen"] = "first_seen_at"
+        values[":first_seen"] = first_seen_at
+        sets.append("#first_seen = if_not_exists(#first_seen, :first_seen)")
+        self.table.update_item(
+            Key=key,
+            UpdateExpression="SET " + ", ".join(sets),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
 
     def get_existing_ids(self, source: Optional[str] = None) -> set[str]:
         """Get existing job IDs from DynamoDB for deduplication.
@@ -215,14 +236,18 @@ class DynamoDBLoader:
                     location: str | None = None, salary_min: int | None = None,
                     since: datetime | None = None,
                     posted_since: datetime | None = None,
-                    deadline_at: float | None = None) -> list[dict]:
-        from src.matcher.search import rank_jobs
+                    deadline_at: float | None = None,
+                    min_score: int | None = None) -> list[dict]:
+        """Rank the cached snapshot.  ``min_score`` defaults to the alert floor
+        (title must name the occupation); interactive search passes a lower one."""
+        from src.matcher.search import ALERT_MIN_SCORE, rank_jobs
         # Storage failures must propagate; they are not an empty search result.
         return rank_jobs(self.get_search_items(deadline_at=deadline_at), keyword,
                          location=location,
                          salary_min=salary_min, since=since,
                          posted_since=posted_since, limit=limit,
-                         max_age_days=get_settings().max_job_age_days)
+                         max_age_days=get_settings().max_job_age_days,
+                         min_score=ALERT_MIN_SCORE if min_score is None else min_score)
 
 
 

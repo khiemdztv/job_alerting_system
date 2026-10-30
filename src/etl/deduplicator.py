@@ -13,7 +13,6 @@ Strategy:
 
 from __future__ import annotations
 
-
 from src.common.logger import get_logger
 from src.common.models import Job
 

@@ -1,0 +1,408 @@
+{
+ "_type": "jobs",
+ "aggregations": {
+  "categories": [],
+  "status": [
+   {
+    "key": 3,
+    "doc_count": 4
+   }
+  ]
+ },
+ "data": [
+  {
+   "id": 2141735,
+   "title": "Thực Tập Sinh Kế Toán",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 52170,
+   "company": {
+    "id": 52170,
+    "display_name": "TẬP ĐOÀN NOVAON",
+    "image_logo": "https://assets.saramin.vn/images/2026/09/23/Saramin-d3afcd78757c28e33496695fddd81589-1790144713.png",
+    "slug": "tap-doan-novaon",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/tap-doan-novaon-52170",
+    "is_followed": false
+   },
+   "skills_str": "Kế toán",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Thực tập",
+   "addresses": {
+    "address_region_ids": [
+     "01"
+    ],
+    "address_region_array": [
+     "Thành phố Hà Nội"
+    ],
+    "collection_addresses": [
+     {
+      "province": {
+       "id": "01",
+       "value": "Thành phố Hà Nội"
+      },
+      "street": "Toà nhà CIC, Số 2, Ngõ 219 Trung Kính",
+      "district": {
+       "id": "005",
+       "value": "Quận Cầu Giấy"
+      },
+      "latitude": null,
+      "id": 1601,
+      "ward": {
+       "id": "00172",
+       "value": "Phường Yên Hoà"
+      },
+      "full_address": "Toà nhà CIC, Số 2, Ngõ 219 Trung Kính, Phường Yên Hoà, Quận Cầu Giấy, Thành phố Hà Nội",
+      "postal_code": "100000",
+      "longitude": null
+     }
+    ],
+    "full_addresses": [
+     "Toà nhà CIC, Số 2, Ngõ 219 Trung Kính, Phường Yên Hoà, Quận Cầu Giấy, Thành phố Hà Nội"
+    ],
+    "sort_addresses": "Quận Cầu Giấy, Hà Nội",
+    "address_region_list": "Thành phố Hà Nội"
+   },
+   "detail_url": "https://topdev.vn/viec-lam/thuc-tap-sinh-ke-toan-tap-doan-novaon-2141735",
+   "salary": {
+    "min_estimate": 0,
+    "currency_estimate": "VND",
+    "unit": "MONTH",
+    "min": "1******",
+    "max": "2******",
+    "min_filter": 1000000,
+    "is_negotiable": "0",
+    "currency": "VND",
+    "max_filter": 2000000,
+    "value": "1****** - 2****** VND",
+    "max_estimate": 0
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "28-10-2026",
+    "datetime": "00:00:00 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "refreshed": {
+    "date": "28-10-2026",
+    "datetime": "10:11:38 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  },
+  {
+   "id": 2141689,
+   "title": "Thực Tập Sinh Kế Toán - Accounting Intern",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 87166,
+   "company": {
+    "id": 87166,
+    "display_name": "CÔNG TY TNHH YUSEN LOGISTICS (VIỆT NAM)",
+    "image_logo": "https://assets.saramin.vn/images/2020/11/09/yusen-logistics-logo.png",
+    "slug": "cong-ty-tnhh-yusen-logistics-viet-nam",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/cong-ty-tnhh-yusen-logistics-viet-nam-87166",
+    "is_followed": false
+   },
+   "skills_str": "Kế toán",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Thực tập",
+   "addresses": {
+    "address_region_ids": [
+     "79",
+     "74"
+    ],
+    "address_region_array": [
+     "Thành phố Hồ Chí Minh",
+     "Tỉnh Bình Dương"
+    ],
+    "collection_addresses": [
+     {
+      "province": {
+       "id": "79",
+       "value": "Thành phố Hồ Chí Minh"
+      },
+      "street": "Sai Gon Riverside Office Building, 2A-4A Tôn Đức Thắng",
+      "district": {
+       "id": "760",
+       "value": "Quận 1"
+      },
+      "latitude": null,
+      "id": 208234,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "full_address": "Sai Gon Riverside Office Building, 2A-4A Tôn Đức Thắng, Quận 1, Thành phố Hồ Chí Minh",
+      "postal_code": "700000",
+      "longitude": null
+     },
+     {
+      "province": {
+       "id": "74",
+       "value": "Tỉnh Bình Dương"
+      },
+      "street": "Industrial Park Vietnam - Singapore, Hữu Nghị",
+      "district": {
+       "id": "725",
+       "value": "Thị xã Thuận An"
+      },
+      "latitude": null,
+      "id": 208235,
+      "ward": {
+       "id": "25987",
+       "value": "Phường Bình Hòa"
+      },
+      "full_address": "Industrial Park Vietnam - Singapore, Hữu Nghị, Phường Bình Hòa, Thị xã Thuận An, Tỉnh Bình Dương",
+      "postal_code": "590000",
+      "longitude": null
+     }
+    ],
+    "full_addresses": [
+     "Sai Gon Riverside Office Building, 2A-4A Tôn Đức Thắng, Quận 1, Thành phố Hồ Chí Minh",
+     "Industrial Park Vietnam - Singapore, Hữu Nghị, Phường Bình Hòa, Thị xã Thuận An, Tỉnh Bình Dương"
+    ],
+    "sort_addresses": "Quận 1, Hồ Chí Minh - Thị xã Thuận An, Bình Dương",
+    "address_region_list": "Thành phố Hồ Chí Minh, Tỉnh Bình Dương"
+   },
+   "detail_url": "https://topdev.vn/viec-lam/thuc-tap-sinh-ke-toan-accounting-intern-cong-ty-tnhh-yusen-logistics-viet-nam-2141689",
+   "salary": {
+    "min_estimate": "0",
+    "currency_estimate": "VND",
+    "unit": "MONTH",
+    "min": "*",
+    "max": "*",
+    "min_filter": 0,
+    "is_negotiable": "1",
+    "currency": "VND",
+    "max_filter": 0,
+    "value": "",
+    "max_estimate": "0"
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "28-10-2026",
+    "datetime": "00:00:00 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "refreshed": {
+    "date": "28-10-2026",
+    "datetime": "09:58:01 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  },
+  {
+   "id": 2141773,
+   "title": "Thực Tập Sinh Kế Toán - Accounting Intern",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 87166,
+   "company": {
+    "id": 87166,
+    "display_name": "CÔNG TY TNHH YUSEN LOGISTICS (VIỆT NAM)",
+    "image_logo": "https://assets.saramin.vn/images/2020/11/09/yusen-logistics-logo.png",
+    "slug": "cong-ty-tnhh-yusen-logistics-viet-nam",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/cong-ty-tnhh-yusen-logistics-viet-nam-87166",
+    "is_followed": false
+   },
+   "skills_str": "",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Thực tập",
+   "addresses": {
+    "address_region_ids": [
+     "31"
+    ],
+    "address_region_array": [
+     "Thành phố Hải Phòng"
+    ],
+    "collection_addresses": [
+     {
+      "province": {
+       "id": "31",
+       "value": "Thành phố Hải Phòng"
+      },
+      "street": "Lô CN3.3C, KCN Đình Vũ",
+      "district": {
+       "id": "306",
+       "value": "Quận Hải An"
+      },
+      "latitude": null,
+      "id": 208231,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "full_address": "Lô CN3.3C, KCN Đình Vũ, Quận Hải An, Thành phố Hải Phòng",
+      "postal_code": "180000",
+      "longitude": null
+     }
+    ],
+    "full_addresses": [
+     "Lô CN3.3C, KCN Đình Vũ, Quận Hải An, Thành phố Hải Phòng"
+    ],
+    "sort_addresses": "Quận Hải An, Hải Phòng",
+    "address_region_list": "Thành phố Hải Phòng"
+   },
+   "detail_url": "https://topdev.vn/viec-lam/thuc-tap-sinh-ke-toan-accounting-intern-cong-ty-tnhh-yusen-logistics-viet-nam-2141773",
+   "salary": {
+    "min_estimate": "0",
+    "currency_estimate": "VND",
+    "unit": "MONTH",
+    "min": "*",
+    "max": "*",
+    "min_filter": 0,
+    "is_negotiable": "1",
+    "currency": "VND",
+    "max_filter": 0,
+    "value": "",
+    "max_estimate": "0"
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "28-10-2026",
+    "datetime": "00:00:00 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "refreshed": {
+    "date": "28-10-2026",
+    "datetime": "10:19:40 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  },
+  {
+   "id": 2138852,
+   "title": "[E-LAND × THANH CONG] E-LAND STRATEGIC INTELLIGENCE 2027 (ESI)",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 96446,
+   "company": {
+    "id": 96446,
+    "display_name": "Công Ty Cổ Phần Dệt May - Đầu Tư - Thương Mại Thành Công (TCG)",
+    "image_logo": "https://assets.saramin.vn/images/2025/12/16/TopDev-logo-thanh-cong-03-1765875575.png",
+    "slug": "cong-ty-co-phan-det-may-dau-tu-thuong-mai-thanh-cong-tcg",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/cong-ty-co-phan-det-may-dau-tu-thuong-mai-thanh-cong-tcg-96446",
+    "is_followed": false
+   },
+   "skills_str": "Supply Chain Management, Sales, Kế toán, Business Development, E-commerce, Strategic Marketing",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Thực tập, Mới tốt nghiệp",
+   "addresses": {
+    "address_region_ids": [
+     "79",
+     "9999999"
+    ],
+    "address_region_list": "Thành phố Hồ Chí Minh, Oversea",
+    "address_region_array": [
+     "Thành phố Hồ Chí Minh",
+     "Oversea"
+    ],
+    "full_addresses": [
+     "36 Tây Thạnh, Phường Tây Thạnh, Quận Tân Phú, Thành phố Hồ Chí Minh",
+     "Hàn Quốc, Oversea"
+    ],
+    "sort_addresses": "Hồ Chí Minh - Oversea",
+    "collection_addresses": [
+     {
+      "id": 209057,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "province": {
+       "id": "79",
+       "value": "Thành phố Hồ Chí Minh"
+      },
+      "district": {
+       "id": null,
+       "value": null
+      },
+      "postal_code": "700000",
+      "full_address": "36 Tây Thạnh, Phường Tây Thạnh, Quận Tân Phú, Thành phố Hồ Chí Minh",
+      "latitude": null,
+      "longitude": null,
+      "street": "36 Tây Thạnh, Phường Tây Thạnh, Quận Tân Phú"
+     },
+     {
+      "id": 210106,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "province": {
+       "id": "9999999",
+       "value": "Oversea"
+      },
+      "district": {
+       "id": null,
+       "value": null
+      },
+      "postal_code": "0",
+      "full_address": "Hàn Quốc, Oversea",
+      "latitude": null,
+      "longitude": null,
+      "street": "Hàn Quốc"
+     }
+    ]
+   },
+   "detail_url": "https://topdev.vn/viec-lam/e-land-thanh-cong-e-land-strategic-intelligence-2027-esi-cong-ty-co-phan-det-may-dau-tu-thuong-mai-thanh-cong-tcg-2138852",
+   "salary": {
+    "is_negotiable": "1",
+    "unit": "MONTH",
+    "min": "*",
+    "max": "*",
+    "currency": "VND",
+    "min_estimate": "0",
+    "max_estimate": "0",
+    "currency_estimate": "VND",
+    "value": "",
+    "min_filter": 0,
+    "max_filter": 0
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "16-10-2026",
+    "datetime": "00:00:00 16-10-2026",
+    "since": "2 tuần trước"
+   },
+   "refreshed": {
+    "date": "28-10-2026",
+    "datetime": "02:03:33 28-10-2026",
+    "since": "2 ngày trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  }
+ ],
+ "meta": {
+  "total": 4,
+  "per_page": "50",
+  "current_page": 1,
+  "last_page": 1,
+  "from": 1,
+  "to": 4
+ }
+}

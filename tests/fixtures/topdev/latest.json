@@ -1,0 +1,277 @@
+{
+ "_type": "jobs",
+ "aggregations": {
+  "categories": [],
+  "status": [
+   {
+    "key": 3,
+    "doc_count": 8509
+   }
+  ]
+ },
+ "data": [
+  {
+   "id": 2142759,
+   "title": "Chuyên viên Tư vấn Khách hàng Cá nhân (Chuyên viên UB) - Khu vực Quận 4, Quận 7 - TP. Hồ Chí Minh (2026TD455030)",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 94346,
+   "company": {
+    "id": 94346,
+    "display_name": "MBBANK",
+    "image_logo": "https://assets.saramin.vn/images/2023/10/06/TopDev-MB-Logo-main-01-1696561561.png",
+    "slug": "mbbank",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/mbbank-94346",
+    "is_followed": false
+   },
+   "skills_str": "Risk Management, Business Development, Financial Analysis, Negotiation, Leadership",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Chuyên viên",
+   "addresses": {
+    "address_region_ids": [
+     "79"
+    ],
+    "address_region_array": [
+     "Thành phố Hồ Chí Minh"
+    ],
+    "collection_addresses": [
+     {
+      "province": {
+       "id": "79",
+       "value": "Thành phố Hồ Chí Minh"
+      },
+      "street": "Các chi nhánh thuộc Hồ Chí Minh",
+      "district": {
+       "id": null,
+       "value": null
+      },
+      "latitude": null,
+      "id": 209198,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "full_address": "Các chi nhánh thuộc Hồ Chí Minh, Thành phố Hồ Chí Minh",
+      "postal_code": "700000",
+      "longitude": null
+     }
+    ],
+    "full_addresses": [
+     "Các chi nhánh thuộc Hồ Chí Minh, Thành phố Hồ Chí Minh"
+    ],
+    "sort_addresses": " Hồ Chí Minh",
+    "address_region_list": "Thành phố Hồ Chí Minh"
+   },
+   "detail_url": "https://topdev.vn/viec-lam/chuyen-vien-tu-van-khach-hang-ca-nhan-chuyen-vien-ub-khu-vuc-quan-4-quan-7-tp-ho-chi-minh-2026td455030-mbbank-2142759",
+   "salary": {
+    "min_estimate": 0,
+    "currency_estimate": "VND",
+    "unit": "MONTH",
+    "min": "9******",
+    "max": "5*******",
+    "min_filter": 9000000,
+    "is_negotiable": "0",
+    "currency": "VND",
+    "max_filter": 55000000,
+    "value": "9****** - 5******* VND",
+    "max_estimate": 0
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "30-10-2026",
+    "datetime": "00:00:00 30-10-2026",
+    "since": "21 giờ trước"
+   },
+   "refreshed": {
+    "date": "30-10-2026",
+    "datetime": "11:37:38 30-10-2026",
+    "since": "10 giờ trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  },
+  {
+   "id": 2142758,
+   "title": "Chuyên viên Tư vấn Khách hàng Cá nhân (Chuyên viên UB) - Khu vực Tân Phú, Bình Tân - TP. Hồ Chí Minh (2026TD455027)",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 94346,
+   "company": {
+    "id": 94346,
+    "display_name": "MBBANK",
+    "image_logo": "https://assets.saramin.vn/images/2023/10/06/TopDev-MB-Logo-main-01-1696561561.png",
+    "slug": "mbbank",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/mbbank-94346",
+    "is_followed": false
+   },
+   "skills_str": "Risk Management, Business Development, Financial Analysis, Negotiation, Leadership",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Chuyên viên",
+   "addresses": {
+    "address_region_ids": [
+     "79"
+    ],
+    "address_region_array": [
+     "Thành phố Hồ Chí Minh"
+    ],
+    "collection_addresses": [
+     {
+      "province": {
+       "id": "79",
+       "value": "Thành phố Hồ Chí Minh"
+      },
+      "street": "Các chi nhánh thuộc Hồ Chí Minh",
+      "district": {
+       "id": null,
+       "value": null
+      },
+      "latitude": null,
+      "id": 209198,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "full_address": "Các chi nhánh thuộc Hồ Chí Minh, Thành phố Hồ Chí Minh",
+      "postal_code": "700000",
+      "longitude": null
+     }
+    ],
+    "full_addresses": [
+     "Các chi nhánh thuộc Hồ Chí Minh, Thành phố Hồ Chí Minh"
+    ],
+    "sort_addresses": " Hồ Chí Minh",
+    "address_region_list": "Thành phố Hồ Chí Minh"
+   },
+   "detail_url": "https://topdev.vn/viec-lam/chuyen-vien-tu-van-khach-hang-ca-nhan-chuyen-vien-ub-khu-vuc-tan-phu-binh-tan-tp-ho-chi-minh-2026td455027-mbbank-2142758",
+   "salary": {
+    "min_estimate": 0,
+    "currency_estimate": "VND",
+    "unit": "MONTH",
+    "min": "9******",
+    "max": "5*******",
+    "min_filter": 9000000,
+    "is_negotiable": "0",
+    "currency": "VND",
+    "max_filter": 55000000,
+    "value": "9****** - 5******* VND",
+    "max_estimate": 0
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "30-10-2026",
+    "datetime": "00:00:00 30-10-2026",
+    "since": "21 giờ trước"
+   },
+   "refreshed": {
+    "date": "30-10-2026",
+    "datetime": "11:36:37 30-10-2026",
+    "since": "10 giờ trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  },
+  {
+   "id": 2142756,
+   "title": "Chuyên viên Tư vấn Khách hàng Cá nhân (Chuyên viên UB) - Khu vực Quận 5, Quận 6, Quận 11 - TP. Hồ Chí Minh (2026TD455025)",
+   "is_content_image": false,
+   "is_content_image_enabled": false,
+   "owned_id": 94346,
+   "company": {
+    "id": 94346,
+    "display_name": "MBBANK",
+    "image_logo": "https://assets.saramin.vn/images/2023/10/06/TopDev-MB-Logo-main-01-1696561561.png",
+    "slug": "mbbank",
+    "detail_url": "https://topdev.vn/nha-tuyen-dung/mbbank-94346",
+    "is_followed": false
+   },
+   "skills_str": "Risk Management, Business Development, Financial Analysis, Negotiation, Leadership",
+   "job_types_str": "Trực tiếp",
+   "job_levels_str": "Chuyên viên",
+   "addresses": {
+    "address_region_ids": [
+     "79"
+    ],
+    "address_region_array": [
+     "Thành phố Hồ Chí Minh"
+    ],
+    "collection_addresses": [
+     {
+      "province": {
+       "id": "79",
+       "value": "Thành phố Hồ Chí Minh"
+      },
+      "street": "Các chi nhánh thuộc Hồ Chí Minh",
+      "district": {
+       "id": null,
+       "value": null
+      },
+      "latitude": null,
+      "id": 209198,
+      "ward": {
+       "id": null,
+       "value": null
+      },
+      "full_address": "Các chi nhánh thuộc Hồ Chí Minh, Thành phố Hồ Chí Minh",
+      "postal_code": "700000",
+      "longitude": null
+     }
+    ],
+    "full_addresses": [
+     "Các chi nhánh thuộc Hồ Chí Minh, Thành phố Hồ Chí Minh"
+    ],
+    "sort_addresses": " Hồ Chí Minh",
+    "address_region_list": "Thành phố Hồ Chí Minh"
+   },
+   "detail_url": "https://topdev.vn/viec-lam/chuyen-vien-tu-van-khach-hang-ca-nhan-chuyen-vien-ub-khu-vuc-quan-5-quan-6-quan-11-tp-ho-chi-minh-2026td455025-mbbank-2142756",
+   "salary": {
+    "min_estimate": 0,
+    "currency_estimate": "VND",
+    "unit": "MONTH",
+    "min": "9******",
+    "max": "5*******",
+    "min_filter": 9000000,
+    "is_negotiable": "0",
+    "currency": "VND",
+    "max_filter": 55000000,
+    "value": "9****** - 5******* VND",
+    "max_estimate": 0
+   },
+   "is_salary_visible": false,
+   "published": {
+    "date": "30-10-2026",
+    "datetime": "00:00:00 30-10-2026",
+    "since": "21 giờ trước"
+   },
+   "refreshed": {
+    "date": "30-10-2026",
+    "datetime": "11:35:37 30-10-2026",
+    "since": "10 giờ trước"
+   },
+   "is_applied": false,
+   "is_followed": false,
+   "is_blacklisted": false,
+   "recalled_at": null,
+   "is_remove_cv": false,
+   "is_viewed": false,
+   "promotions": []
+  }
+ ],
+ "meta": {
+  "total": 13201,
+  "per_page": "50",
+  "current_page": 1,
+  "last_page": 265,
+  "from": 1,
+  "to": 50
+ }
+}
