@@ -145,4 +145,5 @@ class JobokoScraper(BaseScraper):
             source=JobSource.JOBOKO,
             source_url=urljoin(BASE_URL, link["href"].strip()),
             posted_at_raw="",
+            valid_through_raw=deadline,  # the card date is the application deadline
         )

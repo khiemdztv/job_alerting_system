@@ -38,6 +38,7 @@ def test_parses_rich_cards(monkeypatch):
     assert first.location == "Hà Nội"
     assert first.salary_raw == "20.000.000 - 30.000.000 VND"
     assert "Hạn nộp hồ sơ: 26/11/2026" in first.description
+    assert first.valid_through_raw == "26/11/2026"
     assert first.source_url.endswith("-xvi6755162")
     assert get.call_args.args[0] == "https://vn.joboko.com/tim-viec-lam-nhan-vien-ke-toan"
 
