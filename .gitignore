@@ -69,3 +69,6 @@ active_env/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Stray local copy of the project (has its own .git); never part of this repo
+Project DE/
