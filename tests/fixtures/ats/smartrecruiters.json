@@ -1,0 +1,151 @@
+{
+ "offset": 0,
+ "limit": 100,
+ "totalFound": 3,
+ "content": [
+  {
+   "id": "744000158655881",
+   "name": "3D Artist",
+   "uuid": "e547f395-5ad6-46ad-bb83-cff97accacc6",
+   "jobAdId": "c67cc0eb-813d-48a0-b80a-05017bea885a",
+   "defaultJobAd": false,
+   "refNumber": "REF6252J",
+   "company": {
+    "identifier": "Gameloft",
+    "name": "Gameloft"
+   },
+   "releasedDate": "2026-10-30T02:14:53.627Z",
+   "location": {
+    "city": "Hanoi",
+    "country": "vn",
+    "remote": false,
+    "hybrid": true,
+    "hybridDescription": "Max 3 days WFH/Week",
+    "fullLocation": "Hanoi, , Vietnam"
+   },
+   "industry": {
+    "id": "computer_games",
+    "label": "Computer Games"
+   },
+   "department": {
+    "id": "3815725",
+    "label": "ART & VIDEO"
+   },
+   "function": {
+    "id": "art_creative",
+    "label": "Art/Creative"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/Gameloft/postings/744000158655881",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000158655929",
+   "name": "3D Game Artist",
+   "uuid": "b7d2ca72-7e15-4d83-ad23-efce2b7edef1",
+   "jobAdId": "322c6320-050c-4855-9584-07375d868a2e",
+   "defaultJobAd": false,
+   "refNumber": "REF6252J",
+   "company": {
+    "identifier": "Gameloft",
+    "name": "Gameloft"
+   },
+   "releasedDate": "2026-10-30T02:14:12.972Z",
+   "location": {
+    "city": "Hanoi",
+    "country": "vn",
+    "remote": false,
+    "hybrid": true,
+    "hybridDescription": "Max 3 days WFH/Week",
+    "fullLocation": "Hanoi, , Vietnam"
+   },
+   "industry": {
+    "id": "computer_games",
+    "label": "Computer Games"
+   },
+   "department": {
+    "id": "3815725",
+    "label": "ART & VIDEO"
+   },
+   "function": {
+    "id": "art_creative",
+    "label": "Art/Creative"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/Gameloft/postings/744000158655929",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000158655704",
+   "name": "3D Model Artist ",
+   "uuid": "ca9932a9-96c0-44fb-b33a-6dde8e008e7a",
+   "jobAdId": "89857818-4576-4637-96d5-5cfc28e8111c",
+   "defaultJobAd": false,
+   "refNumber": "REF6252J",
+   "company": {
+    "identifier": "Gameloft",
+    "name": "Gameloft"
+   },
+   "releasedDate": "2026-10-30T02:12:19.246Z",
+   "location": {
+    "city": "Hanoi",
+    "country": "vn",
+    "remote": false,
+    "hybrid": true,
+    "hybridDescription": "Max 3 days WFH/Week",
+    "fullLocation": "Hanoi, , Vietnam"
+   },
+   "industry": {
+    "id": "computer_games",
+    "label": "Computer Games"
+   },
+   "department": {
+    "id": "3815725",
+    "label": "ART & VIDEO"
+   },
+   "function": {
+    "id": "art_creative",
+    "label": "Art/Creative"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/Gameloft/postings/744000158655704",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  }
+ ]
+}

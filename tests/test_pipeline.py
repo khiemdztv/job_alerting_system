@@ -379,3 +379,55 @@ def test_unreachable_source_stops_after_two_failed_attempts(monkeypatch):
     assert calls == ["kế toán", "marketing"]
     assert summary["status"] == "error"
     assert summary["keywords_deferred"] == 2
+
+
+def test_etl_stores_enrichment_and_group_id(database, monkeypatch):
+    monkeypatch.setattr(
+        "lambdas.etl_handler.S3Loader.save_processed_data", Mock(return_value="saved")
+    )
+    monkeypatch.setattr("lambdas.etl_handler.save_processed_ndjson", Mock(return_value="k"))
+    records = [
+        {"body": json.dumps({
+            "title": title, "company": company, "location": "Hà Nội", "source": source,
+            "source_url": f"https://{source}.vn/job/1", "salary_raw": "15 - 20 triệu",
+            "description": "Yêu cầu 2-3 năm kinh nghiệm Java, Spring. Lương tháng 13, BHXH.",
+        })}
+        for title, company, source in (
+            ("Senior Java Developer", "Công ty CP Giải Pháp Thiên Hoàng", "jobsgo"),
+            ("Java Developer (Urgent)", "GIẢI PHÁP THIÊN HOÀNG JSC", "indeed"),
+        )
+    ]
+    assert etl_handler({"Records": records}, None)["loaded_to_db"] == 2
+    items = database[0].scan()["Items"]
+    assert len({i["job_id"] for i in items}) == 2
+    assert len({i["canonical_group_id"] for i in items}) == 1
+    for item in items:
+        assert item["industry"] == "it_phan_mem"
+        assert item["experience_min_years"] == 2 and item["experience_max_years"] == 3
+        assert {"13th_month", "insurance"} <= set(item["benefits"])
+        assert "java" in item["skills"] and item["tags"] == item["skills"]
+        assert item["salary_period"] == "month" and 0 < item["quality_score"] <= 100
+
+
+def test_etl_writes_gzip_ndjson_for_analytics(database, monkeypatch):
+    import gzip
+
+    import boto3
+
+    settings = get_settings()
+    s3 = boto3.client("s3", region_name=settings.aws_region)
+    s3.create_bucket(
+        Bucket=settings.s3_data_lake_bucket,
+        CreateBucketConfiguration={"LocationConstraint": settings.aws_region},
+    )
+    records = [{"body": json.dumps({"title": "Accountant", "company": "ACME",
+                                    "source": "careerlink",
+                                    "source_url": "https://careerlink.vn/job/1"})}]
+    etl_handler({"Records": records}, None)
+    keys = [o["Key"] for o in s3.list_objects_v2(Bucket=settings.s3_data_lake_bucket)["Contents"]]
+    ndjson = [k for k in keys if k.startswith("processed/ndjson/") and k.endswith(".ndjson.gz")]
+    assert len(ndjson) == 1 and any(k.endswith(".json") for k in keys)
+    body = s3.get_object(Bucket=settings.s3_data_lake_bucket, Key=ndjson[0])["Body"].read()
+    rows = [json.loads(line) for line in gzip.decompress(body).decode("utf-8").splitlines()]
+    assert rows[0]["title"] == "Accountant" and rows[0]["level"] == "unknown"
+    assert "search_blob" not in rows[0] and rows[0]["canonical_group_id"]

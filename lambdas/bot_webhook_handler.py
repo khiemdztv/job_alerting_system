@@ -34,8 +34,13 @@ def handler(event, context):
     try:
         # Parse body
         body = event.get("body", "{}")
+        if event.get("isBase64Encoded") and isinstance(body, str):
+            # Lambda Function URLs (payload format 2.0) may base64-encode the body.
+            import base64
+
+            body = base64.b64decode(body).decode("utf-8")
         if isinstance(body, str):
-            body = json.loads(body)
+            body = json.loads(body or "{}")
 
         logger.info("Received Telegram webhook event")
 

@@ -418,3 +418,14 @@ Cần người dùng chốt: (1) có chi tiền proxy/VPS không và mức trầ
 - Kiểm chứng trên AWS: matcher `dry_run` 200; một `/search kế toán | HCM` thử (chat không tồn tại) hoàn tất trong 15,5s, live search gộp 238/261 tin từ 15 board. Từ IP AWS: JobsGO và TimViec365 trả 403, vieclam.gov.vn timeout kết nối; các board còn lại trả dữ liệu.
 - Tài khoản cũ `585534524041`: đã tắt 2 lịch EventBridge; code 4 Lambda và cấu hình sao lưu tại `dist/cloud-backup-20261030-old/` (ngoài git). Tài nguyên cũ chưa xoá, chờ chủ dự án xác nhận.
 - Script cài máy mới: `winget install Amazon.AWSCLI` → `aws login --profile vieclambot` (duyệt trên trình duyệt) → `AWS_PROFILE=vieclambot python scripts/setup_aws_resources.py` → `python scripts/deploy_lambdas.py`.
+- 31/10/2026 (đêm 30/10): sau khi bot chạy ổn trên tài khoản mới, đã xoá toàn bộ tài nguyên ViecLamBot ở tài khoản cũ `585534524041` (4 Lambda, 2 lịch, API Gateway, 2 bảng, 2 hàng đợi, bucket với 71.748 object, secret You.com, role, log group). Bản sao lưu code/cấu hình/bảng người dùng vẫn ở `dist/cloud-backup-20261030-old/` trên máy phát triển.
+
+### 31/10/2026 — P1 còn lại, P2, P3, P4, P5 (5 agent song song) — 538 test pass
+
+- **P1**: 35 trang career công ty qua ATS (Greenhouse/Lever/Ashby/SmartRecruiters/Workable; 773 tin ở VN), 4 API remote (Himalayas, Remotive, Arbeitnow, Jobicy; có ghi nguồn), workflow GitHub Actions `scrape-external.yml` cho JobsGO/TimViec365/vieclam.gov.vn (`docs/EXTERNAL_RUNNER.md`, cần tạo secret AWS trên GitHub). Registry: 21 nguồn.
+- **P2**: schema `Job` thêm level, kinh nghiệm, skills (từ điển 2.633 kỹ năng đa ngành xây từ VietJobs: 92,6% tin có kỹ năng, trước đây 6%), industry (20 nhóm, ~56% khớp nhãn VietJobs vì VietJobs gắn nhãn theo ngành công ty), benefits, salary_period, district, `canonical_group_id` (gộp trùng liên board), quality_score; đọc trang chi tiết có hạn mức 5 trang/lần ETL; xuất NDJSON gz lên S3 `processed/ndjson/`.
+- **P3**: chỉ mục SQLite FTS5 build mỗi giờ (Lambda `vieclambot-indexer`) lên S3, webhook/matcher tải về `/tmp` theo ETag; top-20 trùng 100% với scan, độ trễ giảm ~8 lần; tự fallback scan khi chỉ mục thiếu/cũ.
+- **P4**: nút inline mỗi tin (💾 🙈 👍 👎), `/saved`, `/history`, `/settings` (tần suất ngay/2 lần/ngày/ngày/tuần, giờ im lặng, số tin), `/filter` (thành phố, lương, cấp bậc, hình thức), `/exclude`, `/company`, `/follow`, `/trending`, onboarding 3 bước, bàn phím 6 nút, digest có tiêu đề.
+- **P5**: nguồn lỗi 5 lần liên tiếp tự tạm dừng 24h + báo admin, tóm tắt tuần, trần You.com 200 lượt/ngày, `docs/SOURCES.md`, canary fixture 120 ngày, probe `--latest/--location/--json`.
+- Quyết định chi phí: giữ DynamoDB on-demand và kiến trúc hiện tại (~5–10 USD/tháng), không chuyển Azure.
+- **Chưa làm**: LLM enrichment (mục 6.2, cần API key và ngân sách), `/submit`, `/match` theo CV, embedding semantic, 🔁 tin tương tự, GSI `posted_day`.

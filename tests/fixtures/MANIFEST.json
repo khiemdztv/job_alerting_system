@@ -1,0 +1,141 @@
+{
+  "_comment": "Capture date of every fixture. tests/test_fixtures_are_fresh.py fails when one is older than 120 days; see scripts/refresh_fixtures.py.",
+  "max_age_days": 120,
+  "fixtures": {
+    "ats/ashby.json": {
+      "captured_on": "2026-10-30"
+    },
+    "ats/greenhouse.json": {
+      "captured_on": "2026-10-30"
+    },
+    "ats/lever.json": {
+      "captured_on": "2026-10-30"
+    },
+    "ats/smartrecruiters.json": {
+      "captured_on": "2026-10-30"
+    },
+    "ats/workable.json": {
+      "captured_on": "2026-10-30"
+    },
+    "careerlink/latest.html": {
+      "captured_on": "2026-10-30"
+    },
+    "careerlink/no_results.html": {
+      "captured_on": "2026-10-30"
+    },
+    "careerlink/search_ha_noi.html": {
+      "captured_on": "2026-10-30"
+    },
+    "careerviet/no_results.html": {
+      "captured_on": "2026-10-30"
+    },
+    "careerviet/search.html": {
+      "captured_on": "2026-10-30"
+    },
+    "chotot/ad_listing.json": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/array_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/blog.xml": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/careerlink_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/careerviet_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/graph_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/itviec_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/jobs-1.xml": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/jobs-2.xml.gz": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/nested_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/og_only.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/plain.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/search_results.html": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/sitemap_index.xml": {
+      "captured_on": "2026-10-30"
+    },
+    "generic_jsonld/viecoi_detail.html": {
+      "captured_on": "2026-10-30"
+    },
+    "indeed/search_ke_toan.json": {
+      "captured_on": "2026-10-30"
+    },
+    "itviec/search_page.html": {
+      "captured_on": "2026-10-30"
+    },
+    "job123/tuyen_dung_ke_toan.html": {
+      "captured_on": "2026-10-30"
+    },
+    "joboko/tim_viec_lam_nhan_vien_ke_toan.html": {
+      "captured_on": "2026-10-30"
+    },
+    "joboko/viec_lam_moi.html": {
+      "captured_on": "2026-10-30"
+    },
+    "jobsgo/search.html": {
+      "captured_on": "2026-10-30"
+    },
+    "jooble/search.json": {
+      "captured_on": "2026-10-30"
+    },
+    "linkedin/guest_search.html": {
+      "captured_on": "2026-10-30"
+    },
+    "remote_api/arbeitnow.json": {
+      "captured_on": "2026-10-30"
+    },
+    "remote_api/himalayas.json": {
+      "captured_on": "2026-10-30"
+    },
+    "remote_api/jobicy.json": {
+      "captured_on": "2026-10-30"
+    },
+    "remote_api/remotive.json": {
+      "captured_on": "2026-10-30"
+    },
+    "timviec365/category_ha_noi.html": {
+      "captured_on": "2026-10-30"
+    },
+    "timviec365/latest.html": {
+      "captured_on": "2026-10-30"
+    },
+    "topdev/latest.json": {
+      "captured_on": "2026-10-30"
+    },
+    "topdev/search_intern.json": {
+      "captured_on": "2026-10-30"
+    },
+    "vieclam24h/search.html": {
+      "captured_on": "2026-10-30"
+    },
+    "vieclam_gov/search_ke_toan.json": {
+      "captured_on": "2026-10-30"
+    },
+    "vietnamworks/search_api.json": {
+      "captured_on": "2026-10-30"
+    },
+    "ybox/list_page.html": {
+      "captured_on": "2026-10-30"
+    }
+  }
+}

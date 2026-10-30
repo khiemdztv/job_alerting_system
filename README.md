@@ -268,9 +268,13 @@ Key variables configured in `.env` include:
 
 ## Telegram Bot Commands
 
-The bot attaches a persistent reply keyboard to its messages. Users can search, view matched
-jobs, create or remove alerts, list subscriptions, request the next result page, and open help
-without memorizing slash commands. `/menu` shows the keyboard again.
+The bot attaches a persistent 6-button reply keyboard (🔎 Tìm việc, 🎯 Việc phù hợp,
+🔔 Tạo thông báo, 📌 Đã lưu, ⚙️ Cài đặt, ❓ Hướng dẫn); everything else is reachable through
+inline buttons or commands. `/menu` shows the keyboard again.
+
+Every job list (search, `/myjobs`, `/saved`, `/history`, `/company`, alerts) carries one row of
+inline buttons per card: 💾 Lưu, 🙈 Ẩn, 👍, 👎 (👎 also hides the job and down-ranks the
+employer), plus ➡️ Xem thêm. Button presses are one DynamoDB write plus `answerCallbackQuery`.
 
 Register or repair the Telegram slash-command menu with UTF-8 verification:
 
@@ -278,7 +282,20 @@ Register or repair the Telegram slash-command menu with UTF-8 verification:
 & ./dist/python/python.exe scripts/configure_telegram_menu.py
 ```
 
-* `/start`: Registers user profiles and shows the welcome message.
+* `/start`: Registers the user. A user without subscriptions gets a 3-step inline onboarding
+  (nghề → thành phố → cấp bậc) that creates the first subscription.
+* `/saved`: Bookmarked jobs (📌), paginated, with 🗑 Bỏ lưu buttons.
+* `/history`: Jobs alerts sent in the last 7 days.
+* `/settings`: Alert frequency (ngay khi có / 2 lần/ngày / 1 lần/ngày ~08:00 / hằng tuần thứ Hai),
+  quiet hours 22:00–07:00 VN (deferred, never dropped), 5/10/15 jobs per alert, language.
+* `/filter`: Default location, salary floor, level and work type for `/search`, `/myjobs` and new
+  subscriptions. `| location` in a query overrides the default location.
+* `/exclude <keyword | company>`, `/exclude list`, `/exclude remove <x>`: Blacklist applied to
+  search, `/myjobs` and alerts (accent/case-insensitive).
+* `/company <name>`: Current postings of a company with a 🔔 Theo dõi công ty button.
+* `/follow <company>`, `/follow` (list), `/unfollow <company>`: Alerts include new jobs from
+  followed companies.
+* `/trending [city]`: Top occupations, skills, companies and median salaries this week.
 * `/subscribe <keyword> [| location]`: Subscribes to alerts.
   * _Example:_ `/subscribe data analyst | hồ chí minh`
   * _Example:_ `/subscribe Python | Hà Nội`

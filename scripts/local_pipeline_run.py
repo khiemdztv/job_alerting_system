@@ -8,9 +8,12 @@ Run the entire end-to-end Data Engineering pipeline locally using real AWS resou
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
+import time
+from datetime import datetime, timezone
 
 import boto3
 
@@ -19,13 +22,65 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lambdas.etl_handler import handler as etl_handler
 from lambdas.matcher_handler import handler as matcher_handler
+from lambdas.scraper_handler import SEED_KEYWORD_GROUPS, _scrape_source
 from lambdas.scraper_handler import handler as scraper_handler
 from src.config import get_settings
+from src.scrapers.registry import batch_scrapers
+
+# Budget for one external run; the GitHub workflow itself is capped at 20 minutes.
+EXTERNAL_RUN_SECONDS = 15 * 60
 
 
-def run_pipeline():
+def _split(value):
+    return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
+def run_selected_scrapers(sources, keywords, latest_only):
+    """Scrape only ``sources``, persist to S3 and push to SQS (no ETL, no matcher).
+
+    Used by the external runner for boards that block the AWS Lambda IP range.
+    A failing source is reported and skipped; the others still run.
+    """
+    settings = get_settings()
+    wanted = set(sources)
+    scrapers = [s for s in batch_scrapers(settings) if s.source.value in wanted]
+    unknown = wanted - {s.source.value for s in scrapers}
+    if unknown:
+        print(f"Unknown or unavailable sources ignored: {sorted(unknown)}")
+    if latest_only:
+        keywords = []
+    elif not keywords:
+        cycle = int(time.time() // (settings.alert_interval_hours * 3600))
+        keywords = list(SEED_KEYWORD_GROUPS[cycle % len(SEED_KEYWORD_GROUPS)])
+    deadline = time.monotonic() + EXTERNAL_RUN_SECONDS
+    results, total = {}, 0
+    for scraper in scrapers:
+        name = scraper.source.value
+        try:
+            results[name] = _scrape_source(scraper, keywords, settings, deadline)
+            total += results[name]["valid"]
+        except Exception as exc:  # continue-on-error per source
+            print(f"Source {name} failed: {type(exc).__name__}: {exc}")
+            results[name] = {"status": "error", "valid": 0, "error": type(exc).__name__}
+    return {
+        "status": "success",
+        "total_raw_jobs": total,
+        "sources": results,
+        "keywords_searched": len(keywords),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def run_pipeline(args=None):
     settings = get_settings()
     region = settings.aws_region
+    sources = _split(getattr(args, "sources", ""))
+    if sources:
+        summary = run_selected_scrapers(
+            sources, _split(args.keywords), args.latest_only
+        )
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        return
 
     print("=" * 60)
     print("STARTING END-TO-END PIPELINE RUN (LIVE)")
@@ -118,5 +173,23 @@ def run_pipeline():
     print("PIPELINE RUN COMPLETED SUCCESSFULLY!")
     print("=" * 60)
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="ViecLamBot end-to-end or external scrape run")
+    parser.add_argument(
+        "--sources", default="",
+        help="comma-separated JobSource values (e.g. jobsgo,timviec365): scrape only these "
+        "and push to SQS, skipping ETL/matcher. Default: the full local pipeline.",
+    )
+    parser.add_argument(
+        "--keywords", default="",
+        help="comma-separated keywords for --sources runs (default: the current seed group)",
+    )
+    parser.add_argument(
+        "--latest-only", action="store_true",
+        help="with --sources: only each board's newest-listings page, no keyword searches",
+    )
+    return parser.parse_args(argv)
+
+
 if __name__ == "__main__":
-    run_pipeline()
+    run_pipeline(parse_args())

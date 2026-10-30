@@ -13,10 +13,101 @@ Strategy:
 
 from __future__ import annotations
 
+import hashlib
+import re
+from collections.abc import Iterable, Mapping
+from typing import Any, TypeVar, Union
+
 from src.common.logger import get_logger
 from src.common.models import Job
+from src.common.text_utils import clean_vn_text, fold_vn_text, normalize_vn_text
 
 logger = get_logger(__name__)
+
+T = TypeVar("T", bound=Union[Job, Mapping])
+
+# ── Cross-board grouping (canonical_group_id) ────────────────────
+
+# Legal forms and filler words that boards add to or drop from a company name.
+_COMPANY_NOISE = re.compile(
+    r"(?<![a-z0-9])(?:cong ty|cty|ct|tnhh|trach nhiem huu han|mot thanh vien|hai thanh vien"
+    r"|mtv|co phan|cp|cpdt|jsc|joint stock company|joint stock|company limited|company|co"
+    r"|ltd|limited|corp|corporation|inc|llc|plc|pte|tap doan|chi nhanh|branch|van phong dai dien"
+    r"|vpdd|viet nam|vietnam|vn|thuong mai|dich vu|tm|dv|tmdv|sx|xnk|san xuat|xuat nhap khau"
+    r"|dau tu|group)(?![a-z0-9])"
+)
+# Seniority and recruiting noise; the posting is the same job at another level of
+# hype ("Senior Java Developer (Urgent)" on one board, "Java Developer" on another).
+_TITLE_NOISE = re.compile(
+    r"(?<![a-z0-9])(?:senior|junior|middle|mid level|mid|fresher|sr|jr|level|lv|i{1,3}"
+    r"|nhan vien|chuyen vien|nv|cv|tuyen gap|can tuyen gap|can tuyen|tuyen dung|dang tuyen"
+    r"|tuyen|gap|urgent|hot|hiring|we are hiring|cao cap|full time|fulltime|part time"
+    r"|parttime|\d+ (?:nguoi|nv|ung vien|vi tri|slots?))(?![a-z0-9])"
+)
+_BRACKETS = re.compile(r"\([^)]*\)|\[[^\]]*\]|\{[^}]*\}|【[^】]*】")
+# Tails boards append to titles: "- Lương 15-20 triệu", "Tại Hà Nội", "Upto 2000$".
+_TITLE_TAIL = re.compile(
+    r"(?:\s[-–|,:]\s*|\s)(?:lương|thu nhập|salary|upto|up to|lên đến|tại|at|làm việc tại"
+    r"|khu vực|địa điểm)\s.*$|\s[-–|]\s*(?:hà nội|hồ chí minh|tp\.? ?hcm|hcm|đà nẵng)(?![\w]).*$"
+)
+
+
+def normalize_company(company: str) -> str:
+    """"Công ty TNHH ABC Việt Nam" / "ABC Co., Ltd" / "ABC" → "abc"."""
+    text = re.sub(r"[^a-z0-9]+", " ", clean_vn_text(company))
+    text = _COMPANY_NOISE.sub(" ", text)
+    return " ".join(text.split())
+
+
+def normalize_title_for_group(title: str) -> str:
+    """Folded title without brackets, salary/location tails and seniority noise."""
+    text = _BRACKETS.sub(" ", normalize_vn_text(title))
+    text = _TITLE_TAIL.sub(" ", text)
+    text = re.sub(r"[^a-z0-9+#]+", " ", fold_vn_text(text))
+    text = _TITLE_NOISE.sub(" ", text)
+    words = text.split()
+    if not words:  # "Senior (Urgent)" — keep something stable
+        words = re.sub(r"[^a-z0-9+#]+", " ", clean_vn_text(title)).split()
+    return " ".join(words)
+
+
+def _field(job: Union[Job, Mapping], name: str) -> Any:
+    return job.get(name) if isinstance(job, Mapping) else getattr(job, name, None)
+
+
+def canonical_group_id(job: Union[Job, Mapping]) -> str:
+    """Same posting on different boards → same 16-hex id.
+
+    Key = normalised title + normalised company + city.  ``job_id`` is untouched.
+    A posting without a company name is never grouped (its own source URL is
+    mixed in), so two anonymous "Nhân viên kinh doanh" ads stay apart.
+    """
+    city = _field(job, "location_normalized") or ""
+    if not city and _field(job, "location"):
+        from src.etl.transformer import Transformer
+
+        city = Transformer._normalize_location(str(_field(job, "location")))
+    company = normalize_company(str(_field(job, "company") or ""))
+    title = normalize_title_for_group(str(_field(job, "title") or ""))
+    if company:
+        raw = f"{title}|{company}|{clean_vn_text(str(city))}"
+    else:
+        identity = _field(job, "job_id") or _field(job, "source_url") or ""
+        raw = f"{title}||{clean_vn_text(str(city))}|{identity}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def group_duplicates(jobs: Iterable[T]) -> dict[str, list[T]]:
+    """``{canonical_group_id: [jobs...]}`` in first-seen order (Job objects or dicts).
+
+    Uses the stored ``canonical_group_id`` when present, so the bot can merge
+    DynamoDB items into one card ("Có trên TopCV, VietnamWorks").
+    """
+    groups: dict[str, list[T]] = {}
+    for job in jobs:
+        group_id = _field(job, "canonical_group_id") or canonical_group_id(job)
+        groups.setdefault(str(group_id), []).append(job)
+    return groups
 
 
 class Deduplicator:

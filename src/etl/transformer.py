@@ -7,7 +7,8 @@ Transforms RawJob objects into normalized Job objects:
 3. Normalize location (standardize city names)
 4. Extract job type
 5. Extract tags/skills from description
-6. Generate deterministic job ID
+6. Enrich (src/etl/enrich.py) and compute the cross-board ``canonical_group_id``
+7. Generate deterministic job ID
 """
 
 from __future__ import annotations
@@ -21,6 +22,8 @@ from typing import Optional
 from src.common.logger import get_logger
 from src.common.models import Job, JobType, RawJob
 from src.common.text_utils import clean_vn_text, normalize_vn_text
+from src.etl.deduplicator import canonical_group_id
+from src.etl.enrich import enrich_job
 
 logger = get_logger(__name__)
 
@@ -281,6 +284,11 @@ class Transformer:
             salary_min, salary_max = self._parse_salary(raw_job.salary_raw)
             job.salary_min = salary_min
             job.salary_max = salary_max
+
+            # v2 enrichment: level, experience, skills (= tags), industry,
+            # benefits, district, salary period, quality score.
+            enrich_job(job, raw_job, legacy_tags=job.tags)
+            job.canonical_group_id = canonical_group_id(job)
 
             # Precompute search blob for full-text matching.  It keeps the
             # diacritics (lowercase NFC) so search can tell "ít" from "IT"; the

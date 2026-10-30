@@ -18,7 +18,13 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.common.logger import get_logger
-from src.common.scraper_health import ScrapeResult, ScrapeStatus, record_health
+from src.common.scraper_health import (
+    ScrapeResult,
+    ScrapeStatus,
+    is_paused,
+    maybe_send_weekly_summary,
+    record_health,
+)
 from src.config import get_settings
 from src.data_quality.validators import RawJobValidator
 from src.scrapers.base_scraper import LAYOUT_CHANGED, BaseScraper
@@ -60,6 +66,11 @@ def handler(event, context):
 
     # Every registered board that is configured (see src/scrapers/registry.py).
     scrapers = batch_scrapers(settings)
+    paused = [s.source.value for s in scrapers if is_paused(s.source.value, settings)]
+    if paused:
+        logger.warning("Skipping auto-paused sources: %s", ", ".join(paused))
+        scrapers = [s for s in scrapers if s.source.value not in paused]
+    maybe_send_weekly_summary(settings)
     logger.info(
         "Scraping %s sources: %s",
         len(scrapers),
@@ -72,7 +83,8 @@ def handler(event, context):
     deadline = time.monotonic() + (
         context.get_remaining_time_in_millis() / 1000 - 45 if context else 840
     )
-    total_raw_jobs, results = 0, {}
+    total_raw_jobs = 0
+    results = {name: {"status": "paused", "valid": 0} for name in paused}
     failures = []
     # One worker owns one source/session. Persist each keyword immediately.
     with ThreadPoolExecutor(max_workers=settings.scrape_workers) as pool:

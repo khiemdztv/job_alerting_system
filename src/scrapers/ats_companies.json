@@ -1,0 +1,247 @@
+[
+ {
+  "ats": "greenhouse",
+  "slug": "opswat",
+  "company": "OPSWAT",
+  "note": "Hanoi, cybersecurity",
+  "live_priority": 1
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "avepoint",
+  "company": "AvePoint",
+  "note": "Hanoi/Da Nang dev center",
+  "live_priority": 2
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "carousellgroup",
+  "company": "Carousell Group",
+  "note": "Cho Tot / Viec Lam Tot owner",
+  "live_priority": 3
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "Gameloft",
+  "company": "Gameloft",
+  "note": "Games studio, Hanoi/HCMC",
+  "live_priority": 4
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "Eurofins",
+  "company": "Eurofins",
+  "note": "Labs and IT delivery center, HCMC",
+  "live_priority": 5
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "BoschGroup",
+  "company": "Bosch Vietnam",
+  "note": "BGSV software center + factories",
+  "live_priority": 6
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "axon",
+  "company": "Axon",
+  "note": "Ho Chi Minh City engineering hub",
+  "live_priority": 7
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "thoughtworks",
+  "company": "Thoughtworks",
+  "note": "Consulting, Vietnam roles",
+  "live_priority": 8
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "flexport",
+  "company": "Flexport",
+  "note": "Logistics, Hanoi",
+  "live_priority": 9
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "flodesk",
+  "company": "Flodesk",
+  "note": "Da Nang hub",
+  "live_priority": 10
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "rightship",
+  "company": "RightShip",
+  "note": "Hanoi tech",
+  "live_priority": 11
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "navervietnam",
+  "company": "NAVER Vietnam",
+  "note": "Naver dev center HCMC",
+  "live_priority": 12
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "appier",
+  "company": "Appier",
+  "note": "Ad-tech, occasional VN roles",
+  "live_priority": 13
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "wppmedia",
+  "company": "WPP Media",
+  "note": "Agency, HCMC",
+  "live_priority": 14
+ },
+ {
+  "ats": "greenhouse",
+  "slug": "binance",
+  "company": "Binance",
+  "note": "Few APAC/VN roles",
+  "live_priority": 15
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "Endava",
+  "company": "Endava",
+  "note": "IT services, Vietnam delivery",
+  "live_priority": 16
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "Ubisoft2",
+  "company": "Ubisoft",
+  "note": "Da Nang studio",
+  "live_priority": 17
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "CustomizedEnergySolutions",
+  "company": "Customized Energy Solutions",
+  "note": "HCMC IT",
+  "live_priority": 18
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "QIMA",
+  "company": "QIMA",
+  "note": "Quality inspection, many provinces",
+  "live_priority": 19
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "Santen",
+  "company": "Santen",
+  "note": "Pharma sales reps",
+  "live_priority": 20
+ },
+ {
+  "ats": "smartrecruiters",
+  "slug": "VietnamAustraliaInternationalSchool",
+  "company": "Vietnam Australia International School",
+  "note": "Teachers, HCMC",
+  "live_priority": 21
+ },
+ {
+  "ats": "workable",
+  "slug": "optisigns-inc",
+  "company": "OptiSigns",
+  "note": "HCMC software",
+  "live_priority": 22
+ },
+ {
+  "ats": "workable",
+  "slug": "knorex",
+  "company": "KNOREX",
+  "note": "Ad-tech, HCMC",
+  "live_priority": 23
+ },
+ {
+  "ats": "workable",
+  "slug": "tlt",
+  "company": "TLT Electronics Vietnam",
+  "note": "Manufacturing, Long An/HCMC",
+  "live_priority": 24
+ },
+ {
+  "ats": "workable",
+  "slug": "intellecthq",
+  "company": "Intellect",
+  "note": "Wellbeing, Vietnam roles",
+  "live_priority": 25
+ },
+ {
+  "ats": "ashby",
+  "slug": "anyone-ai",
+  "company": "Anyone AI",
+  "note": "Remote contractors in Vietnam",
+  "live_priority": 26
+ },
+ {
+  "ats": "ashby",
+  "slug": "skymavis",
+  "company": "Sky Mavis",
+  "note": "Web3 gaming, HCMC",
+  "live_priority": 27
+ },
+ {
+  "ats": "ashby",
+  "slug": "overview",
+  "company": "Overview Corporation",
+  "note": "Industrial AI, Bac Ninh/Hanoi",
+  "live_priority": 28
+ },
+ {
+  "ats": "lever",
+  "slug": "amanotes",
+  "company": "Amanotes",
+  "note": "Music games, HCMC",
+  "live_priority": 29
+ },
+ {
+  "ats": "lever",
+  "slug": "gradion",
+  "company": "Gradion",
+  "note": "Software, Hanoi/Can Tho",
+  "live_priority": 30
+ },
+ {
+  "ats": "ashby",
+  "slug": "bjakcareer",
+  "company": "Bjak",
+  "note": "3000 postings, ~120 VN; 3.4s",
+  "live_priority": 31
+ },
+ {
+  "ats": "lever",
+  "slug": "ninjavan",
+  "company": "Ninja Van",
+  "note": "Logistics; 5s",
+  "live_priority": null
+ },
+ {
+  "ats": "lever",
+  "slug": "shopback-2",
+  "company": "ShopBack",
+  "note": "Regional roles; 6s",
+  "live_priority": null
+ },
+ {
+  "ats": "lever",
+  "slug": "cargo-partner",
+  "company": "cargo-partner",
+  "note": "Logistics; 8s",
+  "live_priority": null
+ },
+ {
+  "ats": "lever",
+  "slug": "insiderone",
+  "company": "Insider One",
+  "note": "Sales/support; 10s",
+  "live_priority": null
+ }
+]

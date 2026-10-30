@@ -356,6 +356,47 @@ class _Stop(Exception):
     """Stop the run: budget spent or the site is refusing us."""
 
 
+def parse_detail_html(page_html: str, url: str = "") -> dict[str, Any]:
+    """Fields of one job detail page from ``JobPosting`` JSON-LD, else OpenGraph.
+
+    Used by the ETL detail fetch (``src/etl/detail_fetch.py``) to fill short
+    descriptions and missing deadlines.  Returns ``{}`` when the page has
+    neither; keys with no value are omitted.  ``has_job_posting`` tells whether
+    the data came from structured JSON-LD.
+    """
+    page_html = page_html or ""
+    posting = find_job_posting(extract_json_ld(page_html))
+    fields: dict[str, Any]
+    if posting is not None:
+        fields = {
+            "title": _text(posting.get("title") or posting.get("name")),
+            "company": _organization_name(posting.get("hiringOrganization")),
+            "location": _locations(posting),
+            "salary_raw": format_salary(
+                posting.get("baseSalary") or posting.get("estimatedSalary")
+            ),
+            "description": html_to_text(posting.get("description"))[:DESCRIPTION_LIMIT],
+            "requirements": _requirements(posting)[:REQUIREMENTS_LIMIT],
+            "benefits": html_to_text(posting.get("jobBenefits"))[:DESCRIPTION_LIMIT],
+            "job_type_raw": _employment_type(posting.get("employmentType")),
+            "posted_at_raw": _text(posting.get("datePosted")),
+            "valid_through_raw": _text(posting.get("validThrough")),
+            "has_job_posting": True,
+        }
+    else:
+        metas = _meta_tags(page_html)
+        fields = {
+            "title": metas.get("og:title") or _title_tag(page_html),
+            "description": (metas.get("og:description") or metas.get("description")
+                            or "")[:DESCRIPTION_LIMIT],
+            "has_job_posting": False,
+        }
+        if not fields["title"] and not fields["description"]:
+            return {}
+    fields["source_url"] = _canonical_url(page_html, url) if url else ""
+    return {k: v for k, v in fields.items() if v or k == "has_job_posting"}
+
+
 # ── Sitemaps ─────────────────────────────────────────────────────
 
 _SITEMAP_BLOCK = re.compile(r"<(?:\w+:)?(url|sitemap)\b[^>]*>(.*?)</(?:\w+:)?\1\s*>", re.S | re.I)

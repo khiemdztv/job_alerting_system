@@ -12,6 +12,7 @@ from typing import Callable
 
 from src.common.models import JobSource
 from src.config import Settings, get_settings
+from src.scrapers.ats_scraper import AtsScraper
 from src.scrapers.base_scraper import BaseScraper
 from src.scrapers.careerlink_scraper import CareerLinkScraper
 from src.scrapers.careerviet_scraper import CareerVietScraper
@@ -24,6 +25,7 @@ from src.scrapers.joboko_scraper import JobokoScraper
 from src.scrapers.jobsgo_scraper import JobsGoScraper
 from src.scrapers.jooble_scraper import JoobleScraper
 from src.scrapers.linkedin_scraper import LinkedInScraper
+from src.scrapers.remote_api_scraper import RemoteApiScraper
 from src.scrapers.timviec365_scraper import TimViec365Scraper
 from src.scrapers.topcv_scraper import TopCVScraper
 from src.scrapers.topdev_scraper import TopDevScraper
@@ -133,6 +135,11 @@ SOURCES: tuple[SourceSpec, ...] = (
         JobSource.TOPCV, "TopCV", TopCVScraper, live=False,
         requires_setting="you_search_enabled",
     ),
+    # Company career pages (Greenhouse/Lever/Ashby/SmartRecruiters/Workable JSON APIs);
+    # live mode reads only the 8 fastest companies from ats_companies.json.
+    SourceSpec(JobSource.ATS, "Career pages (ATS)", AtsScraper, live_priority=35, live_timeout=6.0),
+    # Himalayas/Remotive/Arbeitnow/Jobicy: call-capped feeds, batch only.
+    SourceSpec(JobSource.REMOTE_API, "Remote jobs", RemoteApiScraper, live=False),
 )
 
 SOURCE_LABELS: dict[str, str] = {spec.source.value: spec.label for spec in SOURCES}

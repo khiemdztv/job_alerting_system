@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from datetime import datetime, timezone
@@ -108,12 +109,64 @@ LOCATION_LABELS = (
 )
 
 
+_budget_logged = False  # log "cap reached" once per container
+
+
+def _daily_limit() -> int:
+    try:
+        return int(os.environ.get("VIECLAMBOT_YOU_DAILY_LIMIT", "200"))
+    except ValueError:
+        return 200
+
+
+def _budget_allows(settings: Settings) -> bool:
+    """Count this request against today's cap with one atomic UpdateItem.
+
+    Item: users table ``user_id="BUDGET", sk="YOU#<yyyy-mm-dd>"`` (UTC day),
+    attribute ``count``.  Fails open if DynamoDB is unavailable.
+    """
+    global _budget_logged
+    limit = _daily_limit()
+    if limit <= 0:
+        return True
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        table = boto3.resource("dynamodb", region_name=settings.aws_region).Table(
+            settings.dynamodb_users_table
+        )
+        response = table.update_item(
+            Key={"user_id": "BUDGET", "sk": f"YOU#{day}"},
+            UpdateExpression="ADD #c :one SET #t = if_not_exists(#t, :ttl)",
+            ExpressionAttributeNames={"#c": "count", "#t": "ttl"},
+            ExpressionAttributeValues={":one": 1, ":ttl": int(time.time()) + 3 * 86400},
+            ReturnValues="UPDATED_NEW",
+        )
+        used = int(response["Attributes"]["count"])
+    except Exception as exc:
+        logger.warning("You.com budget check failed (allowing): %s", type(exc).__name__)
+        return True
+    if used > limit:
+        if not _budget_logged:
+            logger.warning("You.com daily limit of %s requests reached", limit)
+            _budget_logged = True
+        return False
+    return True
+
+
 @lru_cache(maxsize=8)
 def _read_secret(secret_id: str, region: str) -> str:
-    response = boto3.client("secretsmanager", region_name=region).get_secret_value(
-        SecretId=secret_id
-    )
-    value = response.get("SecretString", "")
+    if secret_id.startswith("ssm:"):
+        # SSM Parameter Store SecureString (standard tier is free, unlike
+        # Secrets Manager); value such as "ssm:/vieclambot/you-api-key".
+        response = boto3.client("ssm", region_name=region).get_parameter(
+            Name=secret_id[4:], WithDecryption=True
+        )
+        value = response.get("Parameter", {}).get("Value", "")
+    else:
+        response = boto3.client("secretsmanager", region_name=region).get_secret_value(
+            SecretId=secret_id
+        )
+        value = response.get("SecretString", "")
     if not value:
         raise YouSearchError("You.com API secret is empty")
     try:
@@ -319,6 +372,8 @@ class YouSearchClient:
             "safesearch": "moderate",
             "include_domains": domains or VIETNAM_JOB_DOMAINS,
         }
+        if not _budget_allows(self.settings):
+            return []
         candidates = self._request(
             preferred_payload,
             self.settings.you_search_freshness,

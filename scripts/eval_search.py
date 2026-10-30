@@ -28,6 +28,12 @@ What it does
 5. Timing: ``rank_jobs`` on the corpus and on a replicated corpus (``--scale``), with a
    linear extrapolation to 50k/100k jobs, plus a DynamoDB full-scan cost model derived
    from the real item sizes.
+6. ``--index``: builds the prebuilt search index (``src.search_index``) from the corpus
+   and runs every query through the index path (candidates -> ``rank_jobs``).  Reports
+   the recall of the index candidates against the full-scan ranking (share of the
+   scan's top 20 and of all scan results present in the candidates; target >= 98 %),
+   whether the final top 20 is identical, and per-query latency index vs scan, on the
+   corpus and on the ``--scale`` replica.
 
 The heuristics are deliberately simple regexes over accent-stripped titles; they are a
 triage aid for a human reviewer, not ground truth.
@@ -651,6 +657,104 @@ def timing(jobs: list[dict], scale: int) -> dict:
     return results
 
 
+# ── Search index ────────────────────────────────────────────────────────────────
+
+
+def index_eval(jobs: list[dict], scale: int, min_score: int | None,
+               formats: tuple[str, ...]) -> dict:
+    """Candidate recall and latency of the search-index path vs the full scan."""
+    import tempfile
+
+    from src.search_index.builder import build_from_items
+    from src.search_index.common import fts5_available, sqlite_info
+    from src.search_index.reader import DEFAULT_CANDIDATE_LIMIT, SearchIndex
+
+    print("\n=== SEARCH INDEX ===")
+    print(f"  sqlite: {sqlite_info()}")
+    floors = [1, 60] if min_score is None else [min_score]
+    report: dict = {"floors": floors, "candidate_limit": DEFAULT_CANDIDATE_LIMIT}
+    workdir = Path(tempfile.mkdtemp(prefix="vieclambot-index-eval-"))
+    corpora = (("corpus", jobs), (f"x{scale}", replicate(jobs, scale)))
+    for fmt in formats:
+        if fmt == "sqlite" and not fts5_available():
+            print("  sqlite: FTS5 unavailable in this interpreter; skipped")
+            continue
+        for label, corpus in corpora:
+            path = workdir / f"{label}.{fmt}"
+            started = time.perf_counter()
+            built = build_from_items(corpus, path, fmt=fmt)
+            build_s = time.perf_counter() - started
+            index = SearchIndex.open_file(path, fmt)
+            rows = []
+            top_hits = top_total = all_hits = all_total = same_top = 0
+            for spec in QUERIES:
+                keyword, location = parse_search(spec["q"])
+                for floor in floors:
+                    started = time.perf_counter()
+                    scan = rank_jobs(corpus, keyword, location=location, limit=None,
+                                     min_score=floor)
+                    scan_ms = (time.perf_counter() - started) * 1000
+                    started = time.perf_counter()
+                    candidates = index.candidates([keyword], location,
+                                                  limit=DEFAULT_CANDIDATE_LIMIT)
+                    cand_ms = (time.perf_counter() - started) * 1000
+                    via_index = rank_jobs(candidates, keyword, location=location, limit=20,
+                                          min_score=floor)
+                    total_ms = (time.perf_counter() - started) * 1000
+                    ids = {job.get("job_id") for job in candidates}
+                    top = [job.get("job_id") for job in scan[:20]]
+                    hits_top = sum(1 for job_id in top if job_id in ids)
+                    hits_all = sum(1 for job in scan if job.get("job_id") in ids)
+                    top_hits += hits_top
+                    top_total += len(top)
+                    all_hits += hits_all
+                    all_total += len(scan)
+                    same = [job.get("job_id") for job in via_index] == top
+                    same_top += same
+                    rows.append({
+                        "query": spec["q"], "floor": floor, "scan_results": len(scan),
+                        "candidates": len(candidates),
+                        "top20_recall": hits_top / len(top) if top else None,
+                        "all_recall": hits_all / len(scan) if scan else None,
+                        "same_top20": same, "scan_ms": round(scan_ms, 1),
+                        "candidates_ms": round(cand_ms, 1), "index_ms": round(total_ms, 1),
+                    })
+            index.close()
+            key = f"{fmt}:{label}"
+            index_ms = [r["index_ms"] for r in rows]
+            scan_ms = [r["scan_ms"] for r in rows]
+            summary = {
+                "jobs": built.job_count, "build_s": round(build_s, 2),
+                "file_mb": round(path.stat().st_size / 1e6, 2),
+                "top20_recall": top_hits / top_total if top_total else None,
+                "all_recall": all_hits / all_total if all_total else None,
+                "same_top20": f"{same_top}/{len(rows)}",
+                "index_ms_median": round(statistics.median(index_ms), 1),
+                "index_ms_p90": round(sorted(index_ms)[int(len(index_ms) * 0.9)], 1),
+                "index_ms_max": round(max(index_ms), 1),
+                "scan_ms_median": round(statistics.median(scan_ms), 1),
+                "scan_ms_max": round(max(scan_ms), 1),
+                "candidates_median": statistics.median(r["candidates"] for r in rows),
+                "queries": rows,
+            }
+            report[key] = summary
+            print(f"  {key:16} jobs={summary['jobs']:6} build={summary['build_s']:5.2f}s "
+                  f"file={summary['file_mb']:6.2f}MB  top20 recall="
+                  f"{summary['top20_recall']:.2%}  all recall={summary['all_recall']:.2%}  "
+                  f"same top20={summary['same_top20']}")
+            print(f"  {'':16} index ms median/p90/max={summary['index_ms_median']}/"
+                  f"{summary['index_ms_p90']}/{summary['index_ms_max']}  scan ms "
+                  f"median/max={summary['scan_ms_median']}/{summary['scan_ms_max']}  "
+                  f"candidates median={summary['candidates_median']}")
+            for row in rows:
+                if row["top20_recall"] is not None and row["top20_recall"] < 1:
+                    print(f"    recall<100%: {row['query']!r} floor={row['floor']} "
+                          f"top20={row['top20_recall']:.0%}")
+                elif not row["same_top20"]:
+                    print(f"    top20 differs: {row['query']!r} floor={row['floor']}")
+    return report
+
+
 # ── Main ────────────────────────────────────────────────────────────────────────
 
 
@@ -669,6 +773,10 @@ def main() -> int:
     parser.add_argument("--retransform", action="store_true",
                         help="rebuild every cached item through the current Transformer "
                              "(what the table holds after the next ETL run)")
+    parser.add_argument("--index", action="store_true",
+                        help="also evaluate the prebuilt search index path (recall/latency)")
+    parser.add_argument("--index-formats", default="sqlite,pickle",
+                        help="index formats to evaluate with --index")
     args = parser.parse_args()
 
     probe_failures = print_probes()
@@ -718,12 +826,17 @@ def main() -> int:
               f"parse issues: {sum(1 for r in results if not r['parse_ok'])}")
     diag = diagnostics(jobs)
     timings = timing(jobs, args.scale)
-    args.json.parent.mkdir(parents=True, exist_ok=True)
-    args.json.write_text(json.dumps({
+    report = {
         "generated_at": now.isoformat(), "corpus_jobs": len(jobs),
         "probe_failures": probe_failures, "queries": results,
         "diagnostics": diag, "timing": timings,
-    }, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    }
+    if args.index:
+        formats = tuple(f.strip() for f in args.index_formats.split(",") if f.strip())
+        report["search_index"] = index_eval(jobs, args.scale, args.min_score, formats)
+    args.json.parent.mkdir(parents=True, exist_ok=True)
+    args.json.write_text(json.dumps(report, ensure_ascii=False, indent=1, default=str),
+                         encoding="utf-8")
     print(f"\nJSON report: {args.json}")
     return 0
 

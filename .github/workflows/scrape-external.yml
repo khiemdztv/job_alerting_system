@@ -1,0 +1,46 @@
+name: Scrape external
+
+# Experiment: boards that answer the AWS Lambda IP range with 403/timeouts are
+# scraped from a GitHub-hosted runner and pushed to the same SQS queue.
+# GitHub runners are datacenter IPs too, so some boards may block them as well.
+# See docs/EXTERNAL_RUNNER.md.
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: scrape-external
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ap-southeast-1
+      VIECLAMBOT_AWS_REGION: ap-southeast-1
+      VIECLAMBOT_S3_DATA_LAKE_BUCKET: ${{ secrets.VIECLAMBOT_S3_DATA_LAKE_BUCKET }}
+      # Required by the settings model but never used by a scrape-only run.
+      VIECLAMBOT_TELEGRAM_BOT_TOKEN: unused
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      # One step per source: a blocked or crashing board must not stop the others.
+      - name: JobsGO
+        continue-on-error: true
+        run: python scripts/local_pipeline_run.py --sources jobsgo
+      - name: TimViec365
+        continue-on-error: true
+        run: python scripts/local_pipeline_run.py --sources timviec365
+      - name: Vieclam.gov.vn
+        continue-on-error: true
+        run: python scripts/local_pipeline_run.py --sources vieclam_gov

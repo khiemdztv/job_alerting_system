@@ -128,18 +128,31 @@ class KeywordMatcher:
         Returns:
             Dict mapping user_id to list of Subscription objects.
         """
+        return self.load_alert_targets(table_name)[0]
+
+    def load_alert_targets(
+        self, table_name: str
+    ) -> tuple[dict[str, list[Subscription]], dict[str, list[str]]]:
+        """Active subscriptions and followed companies (FOLLOW#) in one scan."""
         dynamodb = boto3.resource("dynamodb", region_name=self.settings.aws_region)
         table = dynamodb.Table(table_name)
 
         user_subs: dict[str, list[Subscription]] = {}
+        follows: dict[str, list[str]] = {}
 
         kwargs = {
-            "FilterExpression": "is_active = :active AND begins_with(sk, :sub_prefix)",
-            "ExpressionAttributeValues": {":active": True, ":sub_prefix": "SUB#"},
+            "FilterExpression": "(is_active = :active AND begins_with(sk, :sub_prefix)) "
+            "OR begins_with(sk, :follow_prefix)",
+            "ExpressionAttributeValues": {
+                ":active": True, ":sub_prefix": "SUB#", ":follow_prefix": "FOLLOW#",
+            },
         }
         while True:
             response = table.scan(**kwargs)
             for item in response.get("Items", []):
+                if str(item.get("sk", "")).startswith("FOLLOW#"):
+                    follows.setdefault(str(item["user_id"]), []).append(item["sk"][7:])
+                    continue
                 sub = Subscription(
                     user_id=str(item["user_id"]),
                     keyword_raw=item.get("keyword_raw", ""),
@@ -152,8 +165,9 @@ class KeywordMatcher:
             if not response.get("LastEvaluatedKey"):
                 break
             kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
-        logger.info("Loaded subscriptions for %s users", len(user_subs))
-        return user_subs
+        logger.info("Loaded subscriptions for %s users, follows for %s users",
+                    len(user_subs), len(follows))
+        return user_subs, follows
 
 
 def format_notification(

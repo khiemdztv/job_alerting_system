@@ -1,0 +1,146 @@
+{
+ "apiVersion": "1",
+ "jobs": [
+  {
+   "id": "a4dc737a-1893-4981-844c-2153ad06be75",
+   "title": "Freelance Travel Spend & Market Explorer",
+   "department": "Growth",
+   "team": "Growth",
+   "employmentType": "Contract",
+   "location": "Vietnam",
+   "secondaryLocations": [
+    {
+     "location": "Canada",
+     "address": {
+      "postalAddress": {
+       "addressCountry": "Canada"
+      }
+     }
+    },
+    {
+     "location": "Vietnam",
+     "address": {
+      "postalAddress": {
+       "addressRegion": "",
+       "addressCountry": "Vietnam"
+      }
+     }
+    },
+    {
+     "location": "Thailand",
+     "address": {
+      "postalAddress": {
+       "addressCountry": "Thailand"
+      }
+     }
+    }
+   ],
+   "publishedAt": "2026-06-10T03:52:45.913+00:00",
+   "isListed": true,
+   "isRemote": true,
+   "workplaceType": "Remote",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "Vietnam",
+     "addressCountry": "Vietnam",
+     "addressLocality": "Ho Chi Minh City"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/skymavis/a4dc737a-1893-4981-844c-2153ad06be75",
+   "applyUrl": "https://jobs.ashbyhq.com/skymavis/a4dc737a-1893-4981-844c-2153ad06be75/application",
+   "descriptionPlain": "About the Opportunity: Whether you are backpacking 🎒through Vietnam, island-hopping in the Philippines, or living that slow-travel life in Thailand, you know the daily routine: grabbing street food, bargaining at local markets, and renting scooters. You also know the exact moment the fun stops—when you run out of cash, can't find an ATM 🏧, or get hit with massive withdrawal fees.\n\nWe are building PayMoji, an app that lets travelers ditch the bulky wallets and pay like a local using native QR codes across Southeast Asia 🌏. To make sure it works seamlessly in the real world, we need eyes and ears on the ground 👀👂. We are looking for observant, street-savvy travelers to help us map out exactly how people spend money in the cities you are already exploring 🗺️.\n\nWe are looking to work with peop"
+  },
+  {
+   "id": "4b58a7cf-538a-44c7-908b-da8918348efb",
+   "title": "Web3 Security Engineer",
+   "department": "Security",
+   "team": "Security",
+   "employmentType": "FullTime",
+   "location": "Vietnam",
+   "secondaryLocations": [],
+   "publishedAt": "2026-03-06T03:41:23.019+00:00",
+   "isListed": true,
+   "isRemote": false,
+   "workplaceType": "OnSite",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "Vietnam",
+     "addressCountry": "Vietnam",
+     "addressLocality": "Ho Chi Minh City"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/skymavis/4b58a7cf-538a-44c7-908b-da8918348efb",
+   "applyUrl": "https://jobs.ashbyhq.com/skymavis/4b58a7cf-538a-44c7-908b-da8918348efb/application",
+   "descriptionPlain": "ABOUT SKY MAVIS\n\nSky Mavis is building the future of gaming. We’re the creators of Axie Infinity, the most successful Web3 game ever, and Ronin, a purpose-built blockchain that ranked as the 4th most-used chain in 2024, behind Ethereum, Bitcoin, and Solana.\n\nWe’ve processed over $4.3 billion in on-chain volume and are backed by more than $170 million from top-tier investors, including a16z, Accel, Libertus Capital, and Paradigm.\n\nOur team moves fast, builds with intention, and believes in a world where players truly own what they earn. If you’re excited by open economies, massive scale, and shaping new digital frontiers, join us.\n\n\n\n\nABOUT THE ROLE\n\nThe Security team drives Web2 and Web3 security for all of Sky Mavis games and digital assets, including the Ronin blockchain network, Ronin w"
+  },
+  {
+   "id": "8d8328c3-b02d-44df-a29b-ddce85c1ca0d",
+   "title": "Cloud Security Engineer",
+   "department": "Security",
+   "team": "Security",
+   "employmentType": "FullTime",
+   "location": "Vietnam",
+   "secondaryLocations": [],
+   "publishedAt": "2026-03-31T06:40:33.219+00:00",
+   "isListed": true,
+   "isRemote": false,
+   "workplaceType": "OnSite",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "Vietnam",
+     "addressCountry": "Vietnam",
+     "addressLocality": "Ho Chi Minh City"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/skymavis/8d8328c3-b02d-44df-a29b-ddce85c1ca0d",
+   "applyUrl": "https://jobs.ashbyhq.com/skymavis/8d8328c3-b02d-44df-a29b-ddce85c1ca0d/application",
+   "descriptionPlain": "ABOUT SKY MAVIS\n\nSky Mavis is building the future of gaming. We’re the creators of Axie Infinity, the most successful Web3 game ever, and Ronin, a purpose-built blockchain that ranked as the 4th most-used chain in 2024, behind Ethereum, Bitcoin, and Solana.\n\nWe’ve processed over $4.3 billion in on-chain volume and are backed by more than $170 million from top-tier investors, including a16z, Accel, Libertus Capital, and Paradigm.\n\nOur team moves fast, builds with intention, and believes in a world where players truly own what they earn. If you’re excited by open economies, massive scale, and shaping new digital frontiers, join us.\n\n\n\n\nABOUT THE ROLE\n\nThe Security team drives Web2 and Web3 security for all of Sky Mavis games and digital assets, including the Ronin blockchain network, Ronin w"
+  },
+  {
+   "id": "c7bbfec7-2e56-4d54-a772-514e3d1af79b",
+   "title": "Legal Counsel / Paralegal",
+   "department": "Legal",
+   "team": "Legal",
+   "employmentType": "FullTime",
+   "location": "Vietnam",
+   "secondaryLocations": [],
+   "publishedAt": "2026-08-31T02:35:19.517+00:00",
+   "isListed": true,
+   "isRemote": false,
+   "workplaceType": "OnSite",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "Vietnam",
+     "addressCountry": "Vietnam",
+     "addressLocality": "Ho Chi Minh City"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/skymavis/c7bbfec7-2e56-4d54-a772-514e3d1af79b",
+   "applyUrl": "https://jobs.ashbyhq.com/skymavis/c7bbfec7-2e56-4d54-a772-514e3d1af79b/application",
+   "descriptionPlain": "About Sky Mavis\n\nSky Mavis, the pioneer behind the blockchain game Axie Infinity, is revolutionizing the virtual gaming world with innovative technology and infrastructure. We are committed to fostering a dynamic and inclusive work culture where individuals can bring their authentic selves to the table. As a team of entrepreneurial disruptors and gamers, we are driven by a shared passion for making a meaningful impact and embracing the challenges and critiques that come with being at the forefront of technological advancement.\n\n\n\nAbout the Role\n\nThe Legal team supports Sky Mavis across a wide range of corporate, commercial, regulatory, and operational matters across multiple jurisdictions. As a fast-growing Web3 company with a global footprint, the Legal team works closely with business te"
+  },
+  {
+   "id": "077388d7-385f-46e2-b7f0-e870deecd707",
+   "title": "Security Operations Intern",
+   "department": "Security",
+   "team": "Security",
+   "employmentType": "FullTime",
+   "location": "Vietnam",
+   "secondaryLocations": [],
+   "publishedAt": "2026-08-18T13:34:07.260+00:00",
+   "isListed": true,
+   "isRemote": false,
+   "workplaceType": "OnSite",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "Vietnam",
+     "addressCountry": "Vietnam",
+     "addressLocality": "Ho Chi Minh City"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/skymavis/077388d7-385f-46e2-b7f0-e870deecd707",
+   "applyUrl": "https://jobs.ashbyhq.com/skymavis/077388d7-385f-46e2-b7f0-e870deecd707/application",
+   "descriptionPlain": "ABOUT SKY MAVIS\n\nSky Mavis is building the future of gaming. We’re the creators of Axie Infinity, the most successful Web3 game ever, and Ronin, a purpose-built blockchain that ranked as the 4th most-used chain in 2024, behind Ethereum, Bitcoin, and Solana.\n\nWe’ve processed over $4.3 billion in on-chain volume and are backed by more than $170 million from top-tier investors, including a16z, Accel, Libertus Capital, and Paradigm.\n\nOur team moves fast, builds with intention, and believes in a world where players truly own what they earn. If you’re excited by open economies, massive scale, and shaping new digital frontiers, join us.\n\n\n\n\nABOUT THE ROLE\n\nWe are replacing our commercial third-party security awareness training vendor with an in-house platform. This internship sits at the intersec"
+  }
+ ]
+}

@@ -8,6 +8,8 @@ Handles user commands via Telegram Bot API:
 - /list           — List active subscriptions
 - /search <kw>    — Search current jobs by keyword
 - /help           — Show help message
+- v2: /saved /history /settings /filter /exclude /company /follow /trending,
+  inline job buttons (💾 🙈 👍 👎) and onboarding — see src/bot/features.py
 
 Designed to work with AWS API Gateway + Lambda webhook.
 """
@@ -23,6 +25,7 @@ import boto3
 import requests
 from botocore.exceptions import ClientError
 
+from src.bot.features import BotFeaturesMixin
 from src.common.logger import get_logger
 from src.common.models import Subscription, User, _escape_md
 from src.config import get_settings
@@ -47,7 +50,13 @@ MENU_MORE = "➡️ Xem thêm"
 MENU_WEB_SEARCH = "🌐 Tìm thêm trên web"
 MENU_UNSUBSCRIBE = "🗑 Hủy thông báo"
 MENU_HELP = "❓ Hướng dẫn"
+MENU_SAVED = "📌 Đã lưu"
+MENU_SETTINGS = "⚙️ Cài đặt"
+# v1 keyboard buttons stay routable: clients keep an old keyboard until the
+# bot sends a new one.
 MENU_ACTIONS = {
+    MENU_SAVED,
+    MENU_SETTINGS,
     MENU_SEARCH,
     MENU_MY_JOBS,
     MENU_SUBSCRIBE,
@@ -64,9 +73,8 @@ def main_menu_markup() -> dict[str, Any]:
     return {
         "keyboard": [
             [{"text": MENU_SEARCH}, {"text": MENU_MY_JOBS}],
-            [{"text": MENU_SUBSCRIBE}, {"text": MENU_SUBSCRIPTIONS}],
-            [{"text": MENU_MORE}, {"text": MENU_WEB_SEARCH}],
-            [{"text": MENU_UNSUBSCRIBE}, {"text": MENU_HELP}],
+            [{"text": MENU_SUBSCRIBE}, {"text": MENU_SAVED}],
+            [{"text": MENU_SETTINGS}, {"text": MENU_HELP}],
         ],
         "resize_keyboard": True,
         "is_persistent": True,
@@ -74,7 +82,12 @@ def main_menu_markup() -> dict[str, Any]:
     }
 
 
-class TelegramBot:
+# Placeholder messages are later edited into job lists with inline buttons;
+# Telegram only lets inline markup be edited onto messages sent with inline markup.
+PLACEHOLDER_MARKUP: dict[str, Any] = {"inline_keyboard": []}
+
+
+class TelegramBot(BotFeaturesMixin):
     """Telegram Bot handler for ViecLamBot."""
 
     def __init__(self):
@@ -163,19 +176,22 @@ class TelegramBot:
         text: str,
         parse_mode: str = "MarkdownV2",
         disable_preview: bool = True,
+        reply_markup: dict[str, Any] | None = None,
     ) -> Optional[dict]:
         """Edit an existing message via Telegram Bot API."""
         try:
+            payload = {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": text,
+                "disable_web_page_preview": disable_preview,
+            }
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+            if reply_markup is not None:
+                payload["reply_markup"] = reply_markup
             response = requests.post(
-                f"{self.api_url}/editMessageText",
-                json={
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "text": text,
-                    "parse_mode": parse_mode,
-                    "disable_web_page_preview": disable_preview,
-                },
-                timeout=10,
+                f"{self.api_url}/editMessageText", json=payload, timeout=10
             )
 
             if response.status_code != 200:
@@ -195,6 +211,7 @@ class TelegramBot:
                         text,
                         parse_mode="",
                         disable_preview=disable_preview,
+                        reply_markup=reply_markup,
                     )
                 return None
 
@@ -203,6 +220,22 @@ class TelegramBot:
         except Exception as e:
             logger.error("Telegram edit exception: %s", type(e).__name__)
             return None
+
+    def answer_callback(self, callback_id: str, text: str = "") -> bool:
+        """Acknowledge a button press (stops the spinner, optional toast)."""
+        if not callback_id:
+            return False
+        payload: dict[str, Any] = {"callback_query_id": callback_id}
+        if text:
+            payload["text"] = text[:190]
+        try:
+            response = requests.post(
+                f"{self.api_url}/answerCallbackQuery", json=payload, timeout=5
+            )
+            return response.status_code == 200
+        except Exception as e:
+            logger.error("Telegram answerCallbackQuery exception: %s", type(e).__name__)
+            return False
 
 
     # ── Command Handlers ────────────────────────────────────────
@@ -314,6 +347,11 @@ class TelegramBot:
 
             self._request_deadline_at = deadline_at
 
+            callback = body.get("callback_query")
+            if callback:
+                self._handle_callback(callback)
+                return {"statusCode": 200, "body": "OK"}
+
             message = body.get("message", {})
             if not message:
                 return {"statusCode": 200, "body": "OK"}
@@ -374,6 +412,30 @@ class TelegramBot:
                     self._prompt_web_search(chat_id)
             elif text == "/more":
                 self._handle_more(chat_id)
+            elif text.startswith("/saved"):
+                self._handle_saved(chat_id)
+            elif text.startswith("/history"):
+                self._handle_history(chat_id)
+            elif text.startswith("/settings"):
+                self._handle_settings(chat_id)
+            elif text.startswith("/filter"):
+                self._handle_filter(chat_id)
+            elif text.startswith("/exclude"):
+                self._handle_exclude(chat_id, text.replace("/exclude", "", 1))
+            elif text.startswith("/unfollow"):
+                self._handle_unfollow(chat_id, text.replace("/unfollow", "", 1))
+            elif text.startswith("/follow"):
+                self._handle_follow(chat_id, text.replace("/follow", "", 1))
+            elif text.startswith("/company"):
+                name = text.replace("/company", "", 1).strip()
+                if name:
+                    self._handle_company(chat_id, name)
+                else:
+                    self._set_pending_action(chat_id, "company")
+                    self.send_message(chat_id, "🏢 Nhập tên công ty, ví dụ: FPT Software",
+                                      parse_mode="")
+            elif text.startswith("/trending"):
+                self._handle_trending(chat_id, text.replace("/trending", "", 1).strip())
             elif text.startswith("/health"):
                 self._handle_health(chat_id)
             elif text.startswith("/help"):
@@ -396,6 +458,10 @@ class TelegramBot:
                 self._prompt_unsubscribe(chat_id)
             elif text == MENU_HELP:
                 self._handle_help(chat_id)
+            elif text == MENU_SAVED:
+                self._handle_saved(chat_id)
+            elif text == MENU_SETTINGS:
+                self._handle_settings(chat_id)
             elif text.startswith("/"):
                 self.send_message(
                     chat_id,
@@ -410,6 +476,10 @@ class TelegramBot:
                     self._handle_unsubscribe(chat_id, text)
                 elif pending_action == "web_search":
                     self._handle_web_search(chat_id, text)
+                elif pending_action == "company":
+                    self._handle_company(chat_id, text)
+                elif pending_action == "onboard":
+                    self._onboarding_keyword(chat_id, text)
                 else:
                     # Search is also the default for ordinary text.
                     self._handle_search(chat_id, text)
@@ -445,6 +515,16 @@ class TelegramBot:
         except ClientError as e:
             logger.error(f"Failed to save user: {e}")
 
+        try:
+            new_user = not self.store.has_subscriptions(chat_id)
+        except ClientError:
+            new_user = False
+        if new_user:
+            # Send the 6-button reply keyboard first, then the inline wizard.
+            self.send_message(chat_id, "🇻🇳 Chào mừng đến ViecLamBot!", parse_mode="")
+            self._start_onboarding(chat_id, user_info.get("first_name", ""))
+            return
+
         self.send_message(chat_id,
             "🇻🇳 ViecLamBot — tìm việc và nhận tin tuyển dụng\n\n"
             "Gõ tên nghề hoặc kỹ năng để tìm ngay, có dấu hay không dấu đều được.\n"
@@ -473,12 +553,20 @@ class TelegramBot:
                 parse_mode="",
             )
             return
+        salary_min = None
+        if not location_raw:
+            # New subscriptions inherit the /filter defaults.
+            ctx = self._load_context(chat_id)
+            if ctx is not None:
+                location_raw = ctx.location
+                salary_min = ctx.salary_min
         location_normalized = normalize_location(location_raw) if location_raw else None
 
         sub = Subscription(
             user_id=chat_id,
             keyword_raw=keyword_clean,
-            location_filter=location_normalized
+            location_filter=location_normalized,
+            salary_min_filter=salary_min,
         )
 
         try:
@@ -663,7 +751,9 @@ class TelegramBot:
             logger.error(f"List subs failed: {e}")
             self.send_message(chat_id, "❌ Có lỗi xảy ra\\. Vui lòng thử lại\\.")
 
-    def _save_search(self, chat_id: str, jobs: list[dict], heading: str):
+    def _save_search(self, chat_id: str, jobs: list[dict], heading: str, *,
+                     kind: str = "jobs", follow_company: str = ""):
+        from src.bot.filters import job_key
         from src.bot.messages import clip
         fields = {"title": 160, "company": 80, "location": 80, "salary_raw": 70,
                   "source": 30, "source_url": 900}
@@ -672,17 +762,21 @@ class TelegramBot:
             item = {key: clip(job.get(key), length) for key, length in fields.items()}
             if len(str(job.get("source_url") or "")) > fields["source_url"]:
                 item["source_url"] = ""
+            # Identity of the full job, so buttons still address it after clipping.
+            item["identity"] = job_key(job)
             byte_count += len(json.dumps(item, ensure_ascii=False).encode("utf-8"))
             if byte_count > 280000:
                 break
             compact.append(item)
         self._user_table().put_item(Item={
             "user_id": chat_id, "sk": "SEARCH#LAST", "jobs": compact,
-            "heading": clip(heading, 160), "offset": 0,
+            "heading": clip(heading, 160), "offset": 0, "kind": kind,
+            "follow_company": follow_company,
             "ttl": int(datetime.now(timezone.utc).timestamp()) + 3600,
         })
 
     def _handle_more(self, chat_id: str, message_id: int | None = None):
+        from src.bot.keyboards import follow_button, job_buttons
         from src.bot.messages import job_pages
         key = {"user_id": chat_id, "sk": "SEARCH#LAST"}
         table = self._user_table()
@@ -701,12 +795,18 @@ class TelegramBot:
         message += f"\nĐang xem {offset + 1}–{next_offset}/{len(jobs)} kết quả."
         if next_offset < len(jobs):
             message += "\n/more — Xem tiếp"
+        extra = [follow_button(state["follow_company"])] if state.get("follow_company") else []
+        markup = job_buttons(included, saved_list=state.get("kind") == "saved",
+                             more=next_offset < len(jobs), extra_rows=extra)
         if message_id:
-            success = self.edit_message(chat_id, message_id, message, parse_mode="HTML")
+            success = self.edit_message(chat_id, message_id, message, parse_mode="HTML",
+                                        reply_markup=markup)
             if not success:
-                success = self.send_message(chat_id, message, parse_mode="HTML")
+                success = self.send_message(chat_id, message, parse_mode="HTML",
+                                            reply_markup=markup)
         else:
-            success = self.send_message(chat_id, message, parse_mode="HTML")
+            success = self.send_message(chat_id, message, parse_mode="HTML",
+                                        reply_markup=markup)
         if success:
             table.update_item(Key=key, UpdateExpression="SET #offset = :offset",
                               ExpressionAttributeNames={"#offset": "offset"},
@@ -726,6 +826,9 @@ class TelegramBot:
                 if not response.get("LastEvaluatedKey"):
                     break
                 kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+            from src.bot.filters import apply_context
+
+            ctx = self._load_context(chat_id)
             all_jobs, seen = [], set()
             for item in items:
                 if not item.get("is_active", True):
@@ -733,8 +836,9 @@ class TelegramBot:
                 results = self.db_loader.search_jobs(
                     item.get("keyword_raw") or item.get("keyword_normalized", ""),
                     limit=self.settings.search_result_limit,
-                    location=item.get("location_filter"),
-                    salary_min=item.get("salary_min_filter"),
+                    location=item.get("location_filter") or (ctx.location if ctx else None),
+                    salary_min=item.get("salary_min_filter")
+                    or (ctx.salary_min if ctx else None),
                     # Same floor as alerts: the title must name the occupation.
                     min_score=ALERT_MIN_SCORE,
                 )
@@ -742,6 +846,7 @@ class TelegramBot:
                     if identity(job) not in seen:
                         seen.add(identity(job))
                         all_jobs.append(job)
+            all_jobs = apply_context(all_jobs, ctx)
             if not all_jobs:
                 self.send_message(
                     chat_id,
@@ -763,6 +868,7 @@ class TelegramBot:
     def _handle_search(self, chat_id: str, keyword: str) -> None:
         from datetime import datetime, timedelta, timezone
 
+        from src.bot.filters import apply_context
         from src.matcher.search import INTERACTIVE_MIN_SCORE, concepts, parse_search
         query, location = parse_search(keyword)
         if not concepts(query):
@@ -772,8 +878,13 @@ class TelegramBot:
                 parse_mode="",
             )
             return
+        ctx = self._load_context(chat_id)
+        if not location and ctx is not None:
+            location = ctx.location  # /filter default; "| nơi khác" overrides it
         temp = self.send_message(
-            chat_id, "🔍 Đang tìm trên các trang tuyển dụng…", parse_mode=""
+            chat_id, "🔍 Đang tìm trên các trang tuyển dụng…", parse_mode="",
+            # Inline (empty) markup so the result can be edited in with job buttons.
+            reply_markup=PLACEHOLDER_MARKUP,
         )
         message_id = temp.get("message_id") if temp else None
         try:
@@ -800,6 +911,7 @@ class TelegramBot:
                     query,
                     limit=self.settings.search_result_limit,
                     location=location,
+                    salary_min=ctx.salary_min if ctx else None,
                     posted_since=datetime.now(timezone.utc)
                     - timedelta(days=self.settings.interactive_search_max_age_days),
                     deadline_at=self._request_deadline_at,
@@ -808,6 +920,7 @@ class TelegramBot:
                 )
             live_jobs = self._collect_live_search(live_future)
             jobs = self._merge_ranked_jobs(query, location, live_jobs, web_jobs, database_jobs)
+            jobs = apply_context(jobs, ctx)
             if not jobs:
                 message = f"Chưa có việc phù hợp với ‘{query}’"
                 if location:
@@ -947,6 +1060,7 @@ class TelegramBot:
             chat_id,
             "🌐 Đang tìm và kiểm tra việc làm mới trên Internet…",
             parse_mode="",
+            reply_markup=PLACEHOLDER_MARKUP,
         )
         message_id = temp.get("message_id") if temp else None
         try:
@@ -980,20 +1094,42 @@ class TelegramBot:
     def _handle_help(self, chat_id: str) -> None:
         self.send_message(chat_id,
             "📖 Cách dùng ViecLamBot\n\n"
-            "/search kế toán | HCM — Tìm theo nghề và địa điểm\n"
-            "/web data analyst intern | HCM — Tìm thêm việc mới trên Internet\n"
-            "Bạn cũng có thể gõ: tìm việc kế toán tại HCM\n"
-            "/more — Xem tiếp kết quả, phiên tìm giữ trong 1 giờ\n"
+            "🔎 Tìm việc\n"
+            "/search kế toán | HCM — Tìm theo nghề và địa điểm (hoặc gõ thẳng tên nghề)\n"
+            "/web data analyst | HCM — Tìm thêm việc mới trên Internet\n"
+            "/company FPT — Tin đang tuyển của một công ty\n"
+            "/trending Hà Nội — Nghề, kỹ năng, công ty nổi bật tuần này\n"
+            "/filter — Bộ lọc mặc định: địa điểm, lương, cấp bậc, hình thức\n"
+            "/more — Xem tiếp kết quả (giữ trong 1 giờ)\n\n"
+            "🔔 Thông báo\n"
             "/subscribe python | Hà Nội — Nhận tin phù hợp\n"
-            "Gửi lại /subscribe cùng từ khóa để đổi địa điểm.\n"
-            "/list — Xem từ khóa đang theo dõi\n"
-            "/myjobs — Tổng hợp việc từ các đăng ký\n"
-            "/unsubscribe python — Hủy một từ khóa\n"
-            "/unsubscribe all — Hủy tất cả\n\n"
+            "/myjobs — Việc phù hợp với các đăng ký\n"
+            "/list — Đăng ký của bạn · /unsubscribe python (hoặc all)\n"
+            "/follow FPT — Theo dõi công ty · /unfollow FPT\n"
+            "/settings — Tần suất, giờ im lặng, số tin mỗi lần\n"
+            "/exclude đa cấp — Loại trừ từ khóa/công ty · /exclude list\n\n"
+            "📌 Tin\n"
+            "Dưới mỗi tin: 💾 Lưu · 🙈 Ẩn · 👍 · 👎 (👎 cũng ẩn tin)\n"
+            "/saved — Tin đã lưu · /history — Tin đã gửi 7 ngày qua\n\n"
             f"Tối đa {self.settings.max_subscriptions} từ khóa, "
-            f"cập nhật mỗi {self.settings.alert_interval_hours} giờ. "
+            f"kiểm tra tin mới mỗi {self.settings.alert_interval_hours} giờ. "
             "Kết quả ưu tiên độ phù hợp và tin gần đây. Lương chưa công bố vẫn được hiển thị.",
             parse_mode="")
+
+    def _handle_trending(self, chat_id: str, city: str = "") -> None:
+        """/trending [thành phố] — weekly market summary (cached 6 h by analytics)."""
+        try:
+            from src.analytics.trending import format_trending, trending_summary
+
+            summary = trending_summary(days=7, city=city or None)
+            self.send_message(chat_id, format_trending(summary), parse_mode="HTML")
+        except Exception:
+            logger.exception("Trending failed")
+            self.send_message(
+                chat_id,
+                "📈 Chưa tải được thống kê lúc này. Vui lòng thử lại sau.",
+                parse_mode="",
+            )
 
     def _handle_health(self, chat_id: str) -> None:
         """Handle /health command — show scraper health status (admin only)."""

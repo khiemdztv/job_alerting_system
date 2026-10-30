@@ -19,15 +19,21 @@ def deploy(profile: str):
     package = (ROOT / "dist/deployment-reviewed.zip").read_bytes()
     expected_hash = base64.b64encode(hashlib.sha256(package).digest()).decode()
     definitions = {
-        "etl": (256, 30),
+        "etl": (256, 60),
         "webhook": (1024, 30),
         "matcher": (1024, 300),
         "scraper": (512, 900),
+        "indexer": (1024, 300),
     }
+    # /tmp (MB): the webhook and matcher unpack the search index there.
+    ephemeral = {"webhook": 1024, "matcher": 1024, "indexer": 1024}
     configs = {}
     for kind in definitions:
         name = "vieclambot-" + kind
-        conf = client.get_function_configuration(FunctionName=name)
+        if kind == "indexer":
+            conf = _ensure_indexer(client, package, configs["matcher"])
+        else:
+            conf = client.get_function_configuration(FunctionName=name)
         if conf["Runtime"] != "python3.12" or conf.get("Architectures") != ["x86_64"]:
             raise RuntimeError(f"Runtime mismatch: {name}")
         configs[kind] = conf
@@ -50,6 +56,7 @@ def deploy(profile: str):
             MemorySize=memory,
             Timeout=timeout,
             Environment={"Variables": variables},
+            EphemeralStorage={"Size": ephemeral.get(kind, 512)},
             RevisionId=conf["RevisionId"],
         )
         client.get_waiter("function_updated_v2").wait(FunctionName=name)
@@ -112,17 +119,74 @@ def deploy(profile: str):
         )
 
     events = session.client("events")
+    _ensure_indexer_schedule(events, client, configs["indexer"]["FunctionArn"])
     for name, schedule in (
         ("vieclambot-scraper-schedule", "cron(0 */6 * * ? *)"),
         ("vieclambot-matcher-schedule", "cron(20 */6 * * ? *)"),
+        ("vieclambot-indexer-schedule", INDEXER_SCHEDULE),
     ):
         if not events.list_targets_by_rule(Rule=name)["Targets"]:
             raise RuntimeError(f"Missing scheduled target: {name}")
         events.put_rule(Name=name, ScheduleExpression=schedule, State="ENABLED")
         print(json.dumps({"rule": name, "schedule": schedule}), flush=True)
+    # Build the first search index now (no user-visible effect).
+    client.invoke(
+        FunctionName="vieclambot-indexer", InvocationType="Event", Payload=b'{"force": true}'
+    )
     print(
         "Deployment verified; TTL and queue retries configured. No test messages sent.", flush=True
     )
+
+
+INDEXER_SCHEDULE = "cron(30 * * * ? *)"
+
+
+def _ensure_indexer(client, package: bytes, matcher_conf: dict) -> dict:
+    """Create ``vieclambot-indexer`` (role and environment copied from the matcher)."""
+    name = "vieclambot-indexer"
+    try:
+        return client.get_function_configuration(FunctionName=name)
+    except client.exceptions.ResourceNotFoundException:
+        pass
+    client.create_function(
+        FunctionName=name,
+        Runtime="python3.12",
+        Architectures=["x86_64"],
+        Role=matcher_conf["Role"],
+        Handler="lambdas.indexer_handler.handler",
+        Code={"ZipFile": package},
+        Description="Builds the hourly search index (SQLite FTS5) from DynamoDB into S3",
+        Timeout=300,
+        MemorySize=1024,
+        EphemeralStorage={"Size": 1024},
+        Environment={"Variables": dict(matcher_conf.get("Environment", {}).get("Variables", {}))},
+    )
+    client.get_waiter("function_active_v2").wait(FunctionName=name)
+    print(json.dumps({"function": name, "status": "created"}), flush=True)
+    return client.get_function_configuration(FunctionName=name)
+
+
+def _ensure_indexer_schedule(events, client, function_arn: str) -> None:
+    rule = events.put_rule(
+        Name="vieclambot-indexer-schedule",
+        ScheduleExpression=INDEXER_SCHEDULE,
+        State="ENABLED",
+        Description="Rebuilds the search index every hour",
+    )
+    events.put_targets(
+        Rule="vieclambot-indexer-schedule",
+        Targets=[{"Id": "indexer-target", "Arn": function_arn}],
+    )
+    try:
+        client.add_permission(
+            FunctionName="vieclambot-indexer",
+            StatementId="EventBridgeIndexerInvoke",
+            Action="lambda:InvokeFunction",
+            Principal="events.amazonaws.com",
+            SourceArn=rule["RuleArn"],
+        )
+    except client.exceptions.ResourceConflictException:
+        pass
 
 
 if __name__ == "__main__":

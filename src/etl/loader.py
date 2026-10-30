@@ -9,8 +9,9 @@ Loads processed Job objects to:
 from __future__ import annotations
 
 import json
+import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import boto3
@@ -40,11 +41,30 @@ SEARCH_FIELDS = (
     "expires_at",
     "ttl",
     "tags",
+    "skills",
+    "level",
+    "job_type",
+    "industry",
+    "district",
+    "experience_min_years",
+    "canonical_group_id",
     "search_blob",
 )
 
 
 # _clean_vn_text moved to src.common.text_utils.clean_vn_text
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    return default if value is None else value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class DynamoDBLoader:
@@ -238,16 +258,137 @@ class DynamoDBLoader:
                     posted_since: datetime | None = None,
                     deadline_at: float | None = None,
                     min_score: int | None = None) -> list[dict]:
-        """Rank the cached snapshot.  ``min_score`` defaults to the alert floor
-        (title must name the occupation); interactive search passes a lower one."""
+        """Rank jobs for ``keyword``.  ``min_score`` defaults to the alert floor
+        (title must name the occupation); interactive search passes a lower one.
+
+        The prebuilt search index (``src.search_index``) supplies a candidate set
+        when it exists and is younger than ``VIECLAMBOT_SEARCH_INDEX_MAX_AGE_SECONDS``;
+        otherwise, or on any index error, the full-table snapshot is ranked.
+        ``rank_jobs`` is the final ranker on both paths.
+        """
         from src.matcher.search import ALERT_MIN_SCORE, rank_jobs
+        rank = {
+            "location": location, "salary_min": salary_min, "since": since,
+            "posted_since": posted_since, "limit": limit,
+            "max_age_days": get_settings().max_job_age_days,
+            "min_score": ALERT_MIN_SCORE if min_score is None else min_score,
+        }
+        started = time.perf_counter()
+        candidates = self._index_candidates(keyword, deadline_at=deadline_at, **rank)
+        if candidates is not None:
+            results = rank_jobs(candidates, keyword, **rank)
+            logger.info(
+                "Search path=index candidates=%s results=%s in %.0f ms",
+                len(candidates), len(results), (time.perf_counter() - started) * 1000,
+            )
+            return results
         # Storage failures must propagate; they are not an empty search result.
-        return rank_jobs(self.get_search_items(deadline_at=deadline_at), keyword,
-                         location=location,
-                         salary_min=salary_min, since=since,
-                         posted_since=posted_since, limit=limit,
-                         max_age_days=get_settings().max_job_age_days,
-                         min_score=ALERT_MIN_SCORE if min_score is None else min_score)
+        results = rank_jobs(self.get_search_items(deadline_at=deadline_at), keyword, **rank)
+        logger.info("Search path=scan results=%s in %.0f ms",
+                    len(results), (time.perf_counter() - started) * 1000)
+        return results
+
+    # ── Search index path ────────────────────────────────────────────────────
+
+    def _search_index(self):
+        """The container-cached index, or None when absent (overridable in tests)."""
+        from src.search_index import SearchIndex
+
+        return SearchIndex.load(get_settings().s3_data_lake_bucket)
+
+    def _index_candidates(self, keyword: str, *, location, salary_min, since, posted_since,
+                          limit, max_age_days, min_score,
+                          deadline_at: float | None = None) -> list[dict] | None:
+        """Candidates from the search index, or None to fall back to the scan.
+
+        Jobs loaded after the index build are only in DynamoDB.  Interactive
+        ``/search`` accepts that lag (at most one indexer period plus
+        ``..._MAX_AGE_SECONDS``).  The matcher (``since`` given) must not miss new
+        jobs, so when the index is older than ``..._DELTA_AFTER_SECONDS`` it also
+        reads the recent delta with a filtered Scan (see ``_index_delta_items``).
+        """
+        del min_score  # rank_jobs applies the score floor
+        if not _env_bool("VIECLAMBOT_SEARCH_INDEX_ENABLED", True):
+            return None
+        try:
+            index = self._search_index()
+            if index is None:
+                logger.info("Search index missing; using the table scan")
+                return None
+            age = index.age_seconds()
+            if age > _env_int("VIECLAMBOT_SEARCH_INDEX_MAX_AGE_SECONDS", 3 * 3600):
+                logger.warning("Search index is %.0f s old; using the table scan", age)
+                return None
+            from src.matcher.search import extract_salary_filter
+
+            # The same salary bounds rank_jobs will apply, so a limit never cuts
+            # jobs that would pass in favour of jobs it will reject.
+            _, query_min, query_max = extract_salary_filter(keyword)
+            candidate_limit = None
+            if limit is not None:
+                candidate_limit = max(
+                    limit, _env_int("VIECLAMBOT_SEARCH_INDEX_CANDIDATE_LIMIT", 2000)
+                )
+            jobs = index.candidates(
+                [keyword], location, limit=candidate_limit,
+                salary_min=salary_min if salary_min is not None else query_min,
+                salary_max=query_max, since=since, posted_since=posted_since,
+                max_age_days=max_age_days,
+            )
+            if since is not None and age > _env_int(
+                "VIECLAMBOT_SEARCH_INDEX_DELTA_AFTER_SECONDS", 20 * 60
+            ):
+                delta = self._index_delta_items(index.scan_started_at, deadline_at)
+                if delta:
+                    merged = {job.get("job_id"): job for job in jobs}
+                    # The DynamoDB copy is newer than the indexed one.
+                    merged.update((job.get("job_id"), job) for job in delta)
+                    jobs = list(merged.values())
+            return jobs
+        except Exception:
+            logger.warning("Search index failed; using the table scan", exc_info=True)
+            return None
+
+    def _index_delta_items(self, built_from: datetime | None,
+                           deadline_at: float | None = None) -> list[dict]:
+        """Items scraped (or re-scraped) since the index scan started.
+
+        Trade-off: a filtered Scan still *reads* (and is billed for) every item;
+        it only saves transfer, Python heap and ranking time.  It runs only for
+        the matcher, a few times a day, and is cached like the snapshot.  A GSI on
+        the scrape hour or an ETL-written delta object would make it cheap and is
+        left for later.
+        """
+        if built_from is None:
+            return []
+        margin = _env_int("VIECLAMBOT_SEARCH_INDEX_DELTA_MARGIN_SECONDS", 300)
+        threshold = (built_from - timedelta(seconds=margin)).astimezone(timezone.utc)
+        cutoff = threshold.isoformat()
+        cache = getattr(self, "_index_delta", None)
+        cache_seconds = max(60, get_settings().search_snapshot_cache_seconds)
+        if cache and cache[0] == cutoff and time.monotonic() - cache[1] <= cache_seconds:
+            return cache[2]
+        names = {f"#f{index}": field for index, field in enumerate(SEARCH_FIELDS)}
+        names["#scraped"] = "scraped_at"
+        kwargs = {
+            "ProjectionExpression": ", ".join(n for n in names if n != "#scraped"),
+            "ExpressionAttributeNames": names,
+            "FilterExpression": "#scraped >= :cutoff",
+            "ExpressionAttributeValues": {":cutoff": cutoff},
+        }
+        items: list[dict] = []
+        while True:
+            if deadline_at is not None and time.monotonic() >= deadline_at:
+                logger.warning("Search delta scan stopped at the deadline")
+                break
+            response = self.table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            if not response.get("LastEvaluatedKey"):
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        logger.info("Search delta since %s: %s jobs", cutoff, len(items))
+        self._index_delta = (cutoff, time.monotonic(), items)
+        return items
 
 
 

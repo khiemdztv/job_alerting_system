@@ -1,0 +1,157 @@
+{
+ "jobs": [
+  {
+   "absolute_url": "https://job-boards.greenhouse.io/flodesk/jobs/5454885008",
+   "internal_job_id": 4563005008,
+   "location": {
+    "name": "(On-site) Da Nang, Da Nang, Vietnam "
+   },
+   "metadata": null,
+   "id": 5454885008,
+   "updated_at": "2026-10-16T00:50:04-04:00",
+   "requisition_id": "79",
+   "title": "Middle to Senior Data Analyst",
+   "company_name": "Flodesk",
+   "first_published": "2026-10-16T00:50:04-04:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;p&gt;Flodesk is recognized in the Inc 5000 as one of the world&#39;s fastest-growing email marketing companies, built to help entrepreneurs sell online and design emails that people love to get. We&#39;re committed to giving small businesses simple and intuitive tools that help them grow, nurture, and monetize their email list.&lt;/p&gt;\n&lt;p&gt;We’re a remote-first company headquartered in San Francisco with a globally distributed team, including in-person hubs in Da Nang (Vietnam), Barcelona (Spain), and Menlo Park (California). Our team reflects the diversity and creativity of the people we serve. Join our mission to level the playing field for small business owners through good design.&lt;/p&gt;&lt;/div&gt;&lt;h3&gt;&lt;strong&gt;About The Opportunity&lt;/strong&gt;&lt;/h3&gt;\n&lt;p&gt;The Data Team at Flodesk is part of our Engineering Team, based in our Da Nang office. We serve as the single source of truth for the company, providing data-driven insights that empower teams across Product, Marketing, Finance, and Engineering.&amp;nbsp;&lt;/p&gt;\n&lt;p&gt;As a Data Analyst, you’ll play a crucial role in translating raw data into meaningful insights, optimizing data pipelines, and maintaining a self-service BI ecosystem that enables teams to explore and understand data effectively.&lt;/p&gt;\n&lt;p&gt;&lt;strong&gt;What you will do&lt;/strong&gt;&lt;/p&gt;\n&lt;ul&gt;\n&lt;li&gt;&lt;strong&gt;Financial metrics and modeling:&lt;/strong&gt; Own the dbt models behind Flodesk’s financial metrics, from MRR and its movements to billings, collected payments, retention, LTV, and CAC. Build them from Recurly billing data so they hold up through real-world cases like plan changes, failed payments, and refunds, and so the same month shows the same number in every report.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Revenue and cost reconciliation:&lt;/strong&gt; Reconcile billings, collected payments, and MRR against the billing system, payment processors, and accounting records, and explain any gap in terms Finance can act on. Do the same for costs, so unit economics like affiliate commissions rest on numbers everyone trusts.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Finance partnership:&lt;/strong&gt; Work directly with our Finance Director and leadership on metric definitions, cohort and pricing analysis, and recurring reporting. When a definition is genuinely open (say, how to count a member who converts and cancels in the same mont",
+   "departments": [
+    {
+     "id": 4004126008,
+     "name": "Technology",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 4003705008,
+     "name": "Vietnam Office",
+     "location": "(On-site) Da Nang, Da Nang, Vietnam ",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": null
+  },
+  {
+   "absolute_url": "https://job-boards.greenhouse.io/flodesk/jobs/5424167008",
+   "internal_job_id": 4198141008,
+   "location": {
+    "name": "(On-site) Da Nang, Da Nang, Vietnam "
+   },
+   "metadata": null,
+   "id": 5424167008,
+   "updated_at": "2026-10-14T15:40:09-04:00",
+   "requisition_id": "42",
+   "title": "Senior Platform & Security Engineer",
+   "company_name": "Flodesk",
+   "first_published": "2026-09-14T23:16:32-04:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;p&gt;Flodesk is recognized in the Inc 5000 as one of the world&#39;s fastest-growing email marketing companies, built to help entrepreneurs sell online and design emails that people love to get. We&#39;re committed to giving small businesses simple and intuitive tools that help them grow, nurture, and monetize their email list.&lt;/p&gt;\n&lt;p&gt;We’re a remote-first company headquartered in San Francisco with a globally distributed team, including in-person hubs in Da Nang (Vietnam), Barcelona (Spain), and Menlo Park (California). Our team reflects the diversity and creativity of the people we serve. Join our mission to level the playing field for small business owners through good design.&lt;/p&gt;&lt;/div&gt;&lt;h2&gt;About the Opportunity&lt;/h2&gt;\n&lt;p&gt;You are the ultimate owner of our technological backbone — from the highly available AWS clusters serving our customers, to the security and compliance posture that keeps our data safe. You&#39;ll also partner with our Operations team to help cut down the internal IT friction that slows the rest of the company down.&lt;/p&gt;\n&lt;p&gt;We&#39;re expanding fast, building toward an AI-native product surface with an increasingly complex data and infrastructure footprint. That means the ground under this role won&#39;t stay still — what &quot;platform&quot; means here will keep evolving, and we need someone who evolves with it rather than waiting to be told what changed.&lt;/p&gt;\n&lt;p&gt;We don&#39;t believe in silos.&lt;/p&gt;\n&lt;p&gt;&lt;strong&gt;This is a Senior-level, high-autonomy role.&lt;/strong&gt; You&#39;ll be trusted to make judgment calls with real consequences — security, uptime, cost — often without anyone above you double-checking the details.&lt;/p&gt;\n&lt;h2&gt;What You Will Actually Do&lt;/h2&gt;\n&lt;ul&gt;\n&lt;li&gt;&lt;strong&gt;Cloud Infrastructure &amp;amp; DevOps (AWS):&lt;/strong&gt; Build, monitor, and scale our AWS infrastructure. Manage containerized environments (Docker/Kubernetes) via Terraform/Serverless. &quot;ClickOps&quot; in the AWS console is banned here.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Aggressive Monitoring:&lt;/strong&gt; See everything. Use Grafana and AWS tools to monitor the platform. Ensure our autoscaling is ahead of traffic spikes. If it breaks, you know why before the customer does.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Pragmatic Security:&lt;/strong&gt; Manage WAF, IAM roles, and implement the technical contr",
+   "departments": [
+    {
+     "id": 4004126008,
+     "name": "Technology",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 4003705008,
+     "name": "Vietnam Office",
+     "location": "(On-site) Da Nang, Da Nang, Vietnam ",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": null
+  },
+  {
+   "absolute_url": "https://job-boards.greenhouse.io/flodesk/jobs/5382777008",
+   "internal_job_id": 4281035008,
+   "location": {
+    "name": "(On-site) Da Nang, Da Nang, Vietnam "
+   },
+   "metadata": null,
+   "id": 5382777008,
+   "updated_at": "2026-10-19T00:04:27-04:00",
+   "requisition_id": "57",
+   "title": "Senior Software Engineer (FE/BE)",
+   "company_name": "Flodesk",
+   "first_published": "2026-08-07T03:00:23-04:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;p&gt;Flodesk is recognized in the Inc 5000 as one of the world&#39;s fastest-growing email marketing companies, built to help entrepreneurs sell online and design emails that people love to get. We&#39;re committed to giving small businesses simple and intuitive tools that help them grow, nurture, and monetize their email list.&lt;/p&gt;\n&lt;p&gt;We’re a remote-first company headquartered in San Francisco with a globally distributed team, including in-person hubs in Da Nang (Vietnam), Barcelona (Spain), and Menlo Park (California). Our team reflects the diversity and creativity of the people we serve. Join our mission to level the playing field for small business owners through good design.&lt;/p&gt;&lt;/div&gt;&lt;h2&gt;&lt;strong&gt;About the Opportunity&lt;/strong&gt;&lt;/h2&gt;\n&lt;p&gt;We&#39;re looking for a &lt;strong&gt;Senior Software Engineer&lt;/strong&gt; who can move fluidly across the stack - frontend and backend - and who uses AI-native tools (Claude Code, Cursor, Codex, and similar) as a part of how they build, not as an afterthought.&lt;/p&gt;\n&lt;p&gt;&lt;strong&gt;You don&#39;t need prior end-to-end full-stack experience to apply.&lt;/strong&gt; If your background is primarily frontend or primarily backend but you&#39;re genuinely interested in growing into a fullstack role, we want to hear from you. What matters more than your past title is your mindset and your ability to learn fast, especially with AI as a force multiplier.&lt;/p&gt;\n&lt;p&gt;You will not just &quot;convert Figma to code&quot; or &quot;code tickets.&quot; Your core challenges will include:&lt;/p&gt;\n&lt;ul&gt;\n&lt;li&gt;&lt;strong&gt;Craft delightful, intuitive interfaces&lt;/strong&gt; that anticipate user needs across our product suite - email, forms, checkout, and workflow automation.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Build and operate high-scale backend systems&lt;/strong&gt; handling billions of annual events, solving real challenges in speed, data processing, and stability.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Build AI-powered features&lt;/strong&gt; - smarter writing assistance, auto-generated designs, intelligent workflows, and new AI products built from the ground up.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Design strong APIs and integrations&lt;/strong&gt; with partners like Shopify, Zapier, and WooCommerce.&lt;/li&gt;\n&lt;li&gt;&lt;strong&gt;Own your work end to end&lt;/strong&gt; - from understanding &lt;em&gt;why&l",
+   "departments": [
+    {
+     "id": 4004126008,
+     "name": "Technology",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 4003705008,
+     "name": "Vietnam Office",
+     "location": "(On-site) Da Nang, Da Nang, Vietnam ",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": null
+  },
+  {
+   "absolute_url": "https://job-boards.greenhouse.io/flodesk/jobs/5432433008",
+   "internal_job_id": 4552142008,
+   "location": {
+    "name": "Remote"
+   },
+   "metadata": null,
+   "id": 5432433008,
+   "updated_at": "2026-10-14T15:40:09-04:00",
+   "requisition_id": "77",
+   "title": "Sr. Product Manager, AI",
+   "company_name": "Flodesk",
+   "first_published": "2026-09-22T19:40:52-04:00",
+   "language": "en",
+   "application_deadline": null,
+   "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;p&gt;Flodesk is recognized in the Inc 5000 as one of the world&#39;s fastest-growing email marketing companies, built to help entrepreneurs sell online and design emails that people love to get. We&#39;re committed to giving small businesses simple and intuitive tools that help them grow, nurture, and monetize their email list.&lt;/p&gt;\n&lt;p&gt;We’re a remote-first company headquartered in San Francisco with a globally distributed team, including in-person hubs in Da Nang (Vietnam), Barcelona (Spain), and Menlo Park (California). Our team reflects the diversity and creativity of the people we serve. Join our mission to level the playing field for small business owners through good design.&lt;/p&gt;&lt;/div&gt;&lt;h2&gt;About the role&lt;/h2&gt;\n&lt;p&gt;Flodesk is building toward a future where small business owners do not need to be expert marketers to grow. Today, our AI helps members create and edit emails, but that is only the starting point. We are building a system that can understand a member&#39;s business, brand, audience and past performance, then help turn a goal into a complete marketing campaign across email, workflows, forms, sales pages, segmentation, scheduling, analytics and recommendations.&lt;/p&gt;\n&lt;p&gt;Reporting to the Head of Product, AI Systems and Core Experience, you will shape how that system behaves and how we know it is good. You will own Flodesk&#39;s prompts, agent instructions, quality definitions, evaluation criteria and continuous-improvement loop. You will work directly with prompts, outputs, traces, research and product tools, partnering with engineers on code and infrastructure.&lt;/p&gt;\n&lt;p&gt;This is not traditional product management conducted through specs and roadmaps alone. It is a hands-on product role that connects product, language and AI systems. You will need to understand how context, models, tools, product state and structured outputs come together to create a member experience, then identify the right change when that experience fails. You are not expected to build or deploy production code, but you must be able to operate the prompt and evaluation system independently.&lt;/p&gt;\n&lt;h2&gt;What you&#39;ll do&lt;/h2&gt;\n&lt;ul&gt;\n&lt;li&gt;Manage member-facing AI behavior across prompt-to-create, agentic editing and future jobs such as segmentation, scheduling, analytics and recommendations&lt;/li&gt;\n&lt;li&gt;Create, test, version and document prompt",
+   "departments": [
+    {
+     "id": 4004123008,
+     "name": "Product",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 4003550008,
+     "name": "Remote",
+     "location": null,
+     "child_ids": [
+      4076341008
+     ],
+     "parent_id": null
+    }
+   ],
+   "ai_disclaimer": null,
+   "include_ai_disclaimer": null,
+   "ai_opt_out_request_url": null
+  }
+ ],
+ "meta": {
+  "total": 4
+ }
+}

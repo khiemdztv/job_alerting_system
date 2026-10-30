@@ -8,6 +8,15 @@ from src.etl.loader import DynamoDBLoader
 from src.matcher.search import parse_search, rank_jobs, relevance
 
 
+@pytest.fixture(autouse=True)
+def no_search_index(monkeypatch):
+    """These tests cover the scan path with a mocked table: never reach S3.
+
+    The search-index path is covered by tests/test_search_index.py.
+    """
+    monkeypatch.setattr(DynamoDBLoader, "_search_index", lambda self: None)
+
+
 @pytest.mark.parametrize(
     "query,title",
     [

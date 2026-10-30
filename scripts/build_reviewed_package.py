@@ -30,11 +30,13 @@ def build(base: Path, output: Path) -> int:
                 target.writestr(normalized, source.read(name))
             count = 0
             for directory in ("src", "lambdas"):
-                for path in sorted((ROOT / directory).rglob("*.py")):
-                    if "__pycache__" not in path.parts:
+                for path in sorted((ROOT / directory).rglob("*")):
+                    if path.suffix not in {".py", ".json"} or "__pycache__" in path.parts:
+                        continue
+                    if path.suffix == ".py":
                         compile(path.read_text(encoding="utf-8-sig"), str(path), "exec")
-                        target.write(path, path.relative_to(ROOT).as_posix())
-                        count += 1
+                    target.write(path, path.relative_to(ROOT).as_posix())
+                    count += 1
     print(f"Built {output}: {count} Python files, {output.stat().st_size:,} bytes")
     return count
 

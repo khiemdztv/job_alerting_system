@@ -45,6 +45,8 @@ class JobSource(str, Enum):
     ONE900 = "1900"
     VIECLAM_GOV = "vieclam_gov"
     GENERIC = "generic"
+    ATS = "ats"  # company career pages on Greenhouse/Lever/Ashby/SmartRecruiters/Workable
+    REMOTE_API = "remote"  # keyless remote-job APIs (Himalayas, Remotive, Arbeitnow, Jobicy)
 
 
 class JobType(str, Enum):
@@ -55,6 +57,18 @@ class JobType(str, Enum):
     INTERNSHIP = "internship"
     REMOTE = "remote"
     FREELANCE = "freelance"
+    UNKNOWN = "unknown"
+
+
+class JobLevel(str, Enum):
+    """Seniority extracted at ETL time (src/etl/enrich.py)."""
+    INTERN = "intern"
+    FRESHER = "fresher"
+    JUNIOR = "junior"
+    MID = "mid"
+    SENIOR = "senior"
+    LEAD = "lead"
+    MANAGER = "manager"
     UNKNOWN = "unknown"
 
 
@@ -75,6 +89,7 @@ class RawJob(BaseModel):
     source_url: str = ""
     posted_at_raw: str = ""
     valid_through_raw: str = ""  # application deadline as printed by the board
+    benefits_raw: str = ""  # benefits section text (JSON-LD jobBenefits / detail page)
     scraped_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("title", "company", mode="before")
@@ -108,7 +123,20 @@ class Job(BaseModel):
     description: str = ""
     requirements: str = ""
     job_type: JobType = JobType.UNKNOWN
-    tags: list[str] = Field(default_factory=list)  # Extracted skills/keywords
+    tags: list[str] = Field(default_factory=list)  # Same as ``skills`` (kept for old readers)
+
+    # Enrichment (ETL v2, src/etl/enrich.py)
+    level: JobLevel = JobLevel.UNKNOWN
+    experience_min_years: Optional[int] = None  # 0 = no experience required
+    experience_max_years: Optional[int] = None
+    skills: list[str] = Field(default_factory=list)  # canonical names from skills_vi.json
+    industry: str = ""  # code from src.etl.enrich.INDUSTRY_LABELS ("khac" = other)
+    benefits: list[str] = Field(default_factory=list)  # codes from enrich.BENEFIT_LABELS
+    salary_period: str = ""  # month / year / day / hour as printed; "" = no figure
+    district: str = ""  # "Quận 1", "Cầu Giấy", ... (HCM / Ha Noi / Da Nang only)
+    canonical_group_id: str = ""  # same posting on several boards → same id
+    quality_score: int = 0  # 0-100 field completeness
+    details_fetched_at: Optional[datetime] = None  # detail page fetched by the ETL
 
     # Source
     source: JobSource
@@ -165,7 +193,24 @@ class Job(BaseModel):
             "source_url": self.source_url,
             "scraped_at": self.scraped_at.isoformat(),
             "is_new": self.is_new,
+            # v2 enrichment: always written so a re-scrape replaces stale values.
+            # Lists are capped at ETL time (≤30 skills, ≤12 benefit codes).
+            "level": self.level.value,
+            "skills": self.skills[:30],
+            "industry": self.industry,
+            "benefits": self.benefits[:12],
+            "salary_period": self.salary_period,
+            "district": self.district,
+            "canonical_group_id": self.canonical_group_id,
+            "quality_score": int(self.quality_score),
         }
+
+        if self.experience_min_years is not None:
+            item["experience_min_years"] = int(self.experience_min_years)
+        if self.experience_max_years is not None:
+            item["experience_max_years"] = int(self.experience_max_years)
+        if self.details_fetched_at:
+            item["details_fetched_at"] = self.details_fetched_at.isoformat()
 
         # Optional fields
         if self.salary_min is not None:

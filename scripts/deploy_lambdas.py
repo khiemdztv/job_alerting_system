@@ -77,7 +77,8 @@ def build_package(zip_path, temp_dir):
         src_path = os.path.join(project_root, "src")
         for root, dirs, files in os.walk(src_path):
             for file in files:
-                if file.endswith(".py") and "__pycache__" not in root:
+                # Python sources plus data files (skill dictionary, ATS company list).
+                if file.endswith((".py", ".json")) and "__pycache__" not in root:
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, project_root)
                     zip_file.write(full_path, rel_path)
@@ -143,7 +144,7 @@ def deploy_lambdas():
         },
         "vieclambot-etl": {
             "handler": "lambdas.etl_handler.handler",
-            "timeout": 30,
+            "timeout": 60,  # detail-page fetch may use up to 12 s per batch
             "memory": 256,
             "description": "Transforms, deduplicates, and loads jobs from SQS to DB & S3"
         },
@@ -151,13 +152,23 @@ def deploy_lambdas():
             "handler": "lambdas.matcher_handler.handler",
             "timeout": 300,
             "memory": 1024,
+            # The search index is unpacked to /tmp (~1.6 KB per job).
+            "ephemeral": 1024,
             "description": "Matches new jobs against subscriptions and alerts users"
         },
         "vieclambot-webhook": {
             "handler": "lambdas.bot_webhook_handler.handler",
             "timeout": 30,
             "memory": 1024,
+            "ephemeral": 1024,
             "description": "Telegram Bot webhook handler to process user commands"
+        },
+        "vieclambot-indexer": {
+            "handler": "lambdas.indexer_handler.handler",
+            "timeout": 300,
+            "memory": 1024,
+            "ephemeral": 1024,
+            "description": "Builds the hourly search index (SQLite FTS5) from DynamoDB into S3"
         }
     }
 
@@ -233,7 +244,8 @@ def deploy_lambdas():
                 Timeout=conf["timeout"],
                 MemorySize=conf["memory"],
                 Environment={"Variables": env_vars},
-                Description=conf["description"]
+                Description=conf["description"],
+                EphemeralStorage={"Size": conf.get("ephemeral", 512)}
             )
             deployed_arns[name] = res["FunctionArn"]
         else:
@@ -248,7 +260,8 @@ def deploy_lambdas():
                 Timeout=conf["timeout"],
                 MemorySize=conf["memory"],
                 Publish=True,
-                Environment={"Variables": env_vars}
+                Environment={"Variables": env_vars},
+                EphemeralStorage={"Size": conf.get("ephemeral", 512)}
             )
             deployed_arns[name] = res["FunctionArn"]
 
@@ -336,6 +349,39 @@ def deploy_lambdas():
         print("Matcher schedule configured.")
     except Exception as e:
         print(f"Failed to configure Matcher schedule: {e}")
+
+    # 3. Search indexer rule (hourly at :30, between scraper/ETL bursts)
+    try:
+        indexer_rule = events_client.put_rule(
+            Name="vieclambot-indexer-schedule",
+            ScheduleExpression="cron(30 * * * ? *)",
+            State="ENABLED",
+            Description="Rebuilds the search index every hour"
+        )
+        events_client.put_targets(
+            Rule="vieclambot-indexer-schedule",
+            Targets=[{"Id": "indexer-target", "Arn": deployed_arns["vieclambot-indexer"]}]
+        )
+
+        try:
+            lambda_client.add_permission(
+                FunctionName="vieclambot-indexer",
+                StatementId="EventBridgeIndexerInvoke",
+                Action="lambda:InvokeFunction",
+                Principal="events.amazonaws.com",
+                SourceArn=indexer_rule["RuleArn"]
+            )
+        except ClientError as e:
+            if e.response["Error"]["Code"] != "ResourceConflictException":
+                raise
+        print("Indexer schedule configured.")
+        # Build the first index now instead of waiting for minute 30.
+        lambda_client.invoke(
+            FunctionName="vieclambot-indexer", InvocationType="Event", Payload=b'{"force": true}'
+        )
+        print("Indexer invoked asynchronously for an initial build.")
+    except Exception as e:
+        print(f"Failed to configure Indexer schedule: {e}")
 
     # --- API Gateway setup for Bot Webhook ---
     print("\nConfiguring Webhook API Gateway...")
