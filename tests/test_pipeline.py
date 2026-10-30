@@ -352,3 +352,30 @@ def test_supports_latest_is_detected_from_override():
     assert LinkedInScraper().supports_latest is False
     # Whatever the dedicated parser does, the flag is a plain bool.
     assert isinstance(VietnamWorksScraper().supports_latest, bool)
+
+
+def test_unreachable_source_stops_after_two_failed_attempts(monkeypatch):
+    import time
+
+    from src.scrapers.careerlink_scraper import CareerLinkScraper
+
+    scraper = CareerLinkScraper()
+    calls = []
+
+    def failing(keyword, max_pages=None, **kwargs):
+        calls.append(keyword)
+        scraper.last_error = "ConnectTimeout"
+        return []
+
+    monkeypatch.setattr(scraper, "scrape_latest", Mock(return_value=[]))
+    monkeypatch.setattr(scraper, "scrape_safe", failing)
+    monkeypatch.setattr("lambdas.scraper_handler.record_health", Mock())
+
+    summary = _scrape_source(
+        scraper, ["kế toán", "marketing", "python", "sales"], get_settings(),
+        time.monotonic() + 300,
+    )
+
+    assert calls == ["kế toán", "marketing"]
+    assert summary["status"] == "error"
+    assert summary["keywords_deferred"] == 2

@@ -252,6 +252,17 @@ def _persist(jobs, scraper, validator, settings, errors):
     return len(valid)
 
 
+_UNREACHABLE_ERRORS = ("ConnectTimeout", "ConnectionError", "SSLError", "ProxyError")
+
+
+def _unreachable(errors) -> bool:
+    """True when the source answered every attempt so far with a block or no connection."""
+    attempts = [e for e in errors if e]
+    return len(attempts) >= 2 and all(
+        e.startswith("HTTP") or e in _UNREACHABLE_ERRORS for e in attempts
+    )
+
+
 def _scrape_source(scraper, keywords, settings, deadline):
     scraper.deadline_at = deadline
     validator = RawJobValidator()
@@ -277,6 +288,12 @@ def _scrape_source(scraper, keywords, settings, deadline):
         raw_count += len(jobs)
         count += _persist(jobs, scraper, validator, settings, errors)
         completed += 1
+        if count == 0 and _unreachable(errors):
+            # Blocked (403/429) or unreachable from this network: every further
+            # keyword would burn the same timeout, so leave the budget to others.
+            logger.warning("Skipping remaining keywords for %s: %s",
+                           scraper.source.value, errors[-1])
+            break
     fallback_used = False
     fallback = getattr(scraper, "fallback", None)
     if count == 0 and isinstance(fallback, BaseScraper) and time.monotonic() + 60 < deadline:
