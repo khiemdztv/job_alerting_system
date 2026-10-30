@@ -120,10 +120,10 @@ SOURCES: tuple[SourceSpec, ...] = (
         fallback_factory=jsonld_scraper(JobSource.JOB123),
     ),
     SourceSpec(JobSource.JOBOKO, "JobOKO", JobokoScraper, live_priority=25, live_timeout=6.0),
-    SourceSpec(
-        JobSource.VIECLAM_GOV, "Vieclam.gov.vn", VieclamGovScraper,
-        live_priority=40, live_timeout=5.0,
-    ),
+    # api.vieclam.gov.vn does not accept connections from the AWS network, so a
+    # live request only burns its 5 s timeout; it is scraped by the external
+    # runner (docs/EXTERNAL_RUNNER.md) and in batch where the early stop applies.
+    SourceSpec(JobSource.VIECLAM_GOV, "Vieclam.gov.vn", VieclamGovScraper, live=False),
     # Viecoi: sitemap + JSON-LD only; its sitemap takes ~25s, so batch only.
     SourceSpec(JobSource.VIECOI, "Viecoi", jsonld_scraper(JobSource.VIECOI), live=False),
     # YBox downloads one big listing page and filters locally; fine for batch,
